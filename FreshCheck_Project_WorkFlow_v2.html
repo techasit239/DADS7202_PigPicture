@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FreshCheck Deep Lab — Project Work Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+:root {
+  --navy: #1e3a5f;
+  --navy-dark: #122544;
+  --navy-light: #2c5282;
+  --terra: #c4583a;
+  --terra-light: #e07a5f;
+  --terra-soft: #fde8e2;
+  --cream: #fdfaf3;
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --ink-soft: #4a4a4a;
+  --ink-mute: #7a7a7a;
+  --line: #e8e2d4;
+  --line-strong: #cfc8b8;
+  --gold: #c89b3c;
+  --green: #4a7c59;
+  --green-soft: #e3ede5;
+  --amber: #d4943c;
+  --amber-soft: #fbeed3;
+  --red: #b54a3a;
+  --red-soft: #fae3df;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Sarabun', system-ui, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  line-height: 1.6;
+  font-size: 15px;
+  padding: 32px 20px;
+  background-image:
+    radial-gradient(circle at 8% 8%, rgba(196,88,58,0.04) 0%, transparent 40%),
+    radial-gradient(circle at 92% 92%, rgba(30,58,95,0.04) 0%, transparent 40%);
+  min-height: 100vh;
+}
+.container { max-width: 1100px; margin: 0 auto; }
+
+/* ===== HEADER ===== */
+.masthead {
+  background: var(--navy);
+  color: var(--cream);
+  padding: 32px 36px;
+  border-radius: 12px 12px 0 0;
+  position: relative;
+  overflow: hidden;
+}
+.masthead::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 50%, rgba(196,88,58,0.15) 50%);
+}
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--terra-light);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+.subtitle {
+  font-size: 15px;
+  color: rgba(253,250,243,0.7);
+  font-weight: 300;
+}
+.countdown {
+  background: rgba(255,255,255,0.08);
+  padding: 14px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  text-align: right;
+  z-index: 1;
+}
+.countdown-big {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--terra-light);
+  font-family: 'JetBrains Mono', monospace;
+}
+.countdown-lbl {
+  font-size: 11px;
+  color: rgba(253,250,243,0.7);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ===== DATE STRIP ===== */
+.date-strip {
+  background: var(--navy-dark);
+  color: var(--cream);
+  padding: 12px 36px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.date-cell { display: flex; align-items: center; gap: 8px; }
+.date-cell i { color: var(--terra-light); }
+
+/* ===== SECTION ===== */
+.section {
+  background: var(--paper);
+  padding: 28px 36px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+.section:last-of-type {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 12px 12px;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--line);
+}
+.section-num {
+  width: 36px; height: 36px;
+  background: var(--navy);
+  color: var(--cream);
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.section-title { font-size: 22px; font-weight: 600; color: var(--navy); }
+.section-sub { font-size: 13px; color: var(--ink-mute); margin-left: auto; }
+
+/* ===== STATUS GRID ===== */
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+.status-col {
+  padding: 18px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+}
+.status-col.done { background: var(--green-soft); border-color: var(--green); }
+.status-col.active { background: var(--amber-soft); border-color: var(--amber); }
+.status-col.pending { background: #f5f5f0; border-color: var(--line-strong); }
+.status-head {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-col.done .status-head { color: var(--green); }
+.status-col.active .status-head { color: var(--amber); }
+.status-col.pending .status-head { color: var(--ink-mute); }
+.status-item {
+  padding: 6px 0;
+  font-size: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.status-item i { margin-top: 2px; font-size: 14px; }
+
+/* ===== TIMELINE ===== */
+.timeline {
+  position: relative;
+  margin: 16px 0 8px;
+}
+.weeks-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.week {
+  padding: 14px 10px;
+  background: #f8f4ea;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  text-align: center;
+  position: relative;
+}
+.week.now { border-color: var(--terra); background: var(--terra-soft); }
+.week.deadline { border-color: var(--navy); background: var(--navy); color: var(--cream); }
+.week-num {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+}
+.week.now .week-num { color: var(--terra); }
+.week.deadline .week-num { color: var(--terra-light); }
+.week-dates {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--ink-soft);
+  margin: 4px 0 8px;
+}
+.week.deadline .week-dates { color: rgba(253,250,243,0.7); }
+.week-task {
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.now-marker {
+  position: absolute;
+  top: -8px; right: 4px;
+  background: var(--terra);
+  color: white;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ===== PHASE CARDS ===== */
+.phase {
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 14px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.phase-head {
+  padding: 16px 20px;
+  background: #faf6ec;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.phase-head:hover { background: #f5efde; }
+.phase-icon {
+  width: 44px; height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: white;
+  flex-shrink: 0;
+}
+.phase-icon.p1 { background: var(--green); }
+.phase-icon.p2 { background: var(--terra); }
+.phase-icon.p3 { background: var(--navy); }
+.phase-icon.p4 { background: var(--ink-mute); }
+.phase-icon.pnew { background: var(--gold); }
+.phase-meta { flex: 1; min-width: 0; }
+.phase-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 2px;
+}
+.phase-sub {
+  font-size: 13px;
+  color: var(--ink-mute);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.phase-sub span { display: flex; align-items: center; gap: 4px; }
+.phase-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.b-ready { background: var(--amber-soft); color: var(--amber); }
+.b-pending { background: #f0ece0; color: var(--ink-mute); }
+.b-done { background: var(--green-soft); color: var(--green); }
+.b-opt { background: #e8e2d4; color: var(--ink-soft); }
+.phase-toggle {
+  color: var(--ink-mute);
+  transition: transform 0.2s;
+  font-size: 20px;
+}
+.phase.open .phase-toggle { transform: rotate(180deg); }
+.phase-body {
+  display: none;
+  padding: 20px 24px 24px;
+  border-top: 1px dashed var(--line-strong);
+}
+.phase.open .phase-body { display: block; }
+.phase-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+@media (max-width: 720px) {
+  .phase-grid { grid-template-columns: 1fr; }
+}
+.field-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.field-content { font-size: 14px; line-height: 1.6; }
+
+/* Step-by-step list */
+.steps {
+  background: #f8f4ea;
+  border-radius: 6px;
+  padding: 16px 20px;
+  border-left: 3px solid var(--terra);
+}
+.steps-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--terra);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.steps ol {
+  list-style: none;
+  counter-reset: step;
+}
+.steps li {
+  counter-increment: step;
+  padding: 6px 0 6px 36px;
+  position: relative;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0; top: 7px;
+  width: 24px; height: 24px;
+  background: var(--terra);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+.steps li code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: white;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.note {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.note i { font-size: 18px; margin-top: 1px; flex-shrink: 0; }
+.note-warn { background: var(--amber-soft); border-left: 3px solid var(--amber); }
+.note-warn i { color: var(--amber); }
+.note-info { background: #e8eff5; border-left: 3px solid var(--navy-light); }
+.note-info i { color: var(--navy-light); }
+.note-block { background: var(--red-soft); border-left: 3px solid var(--red); }
+.note-block i { color: var(--red); }
+
+/* ===== ROLE MATRIX ===== */
+.matrix {
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.matrix table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.matrix th, .matrix td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.matrix th {
+  background: var(--navy);
+  color: var(--cream);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+.matrix tr:last-child td { border-bottom: none; }
+.matrix tr:hover td { background: #faf6ec; }
+.role-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.role-m { background: var(--terra-soft); color: var(--terra); }
+.role-e { background: #e8eff5; color: var(--navy-light); }
+.role-d { background: var(--green-soft); color: var(--green); }
+.role-all { background: var(--amber-soft); color: var(--amber); }
+.matrix .phase-cell {
+  font-weight: 600;
+  color: var(--navy);
+  white-space: nowrap;
+}
+
+/* ===== RISKS ===== */
+.risks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 720px) {
+  .risks-grid { grid-template-columns: 1fr; }
+}
+.risk {
+  padding: 16px 18px;
+  border-radius: 8px;
+  border: 1.5px solid;
+}
+.risk-high { background: var(--red-soft); border-color: var(--red); }
+.risk-med { background: var(--amber-soft); border-color: var(--amber); }
+.risk-low { background: var(--green-soft); border-color: var(--green); }
+.risk-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.risk-high .risk-head { color: var(--red); }
+.risk-med .risk-head { color: var(--amber); }
+.risk-low .risk-head { color: var(--green); }
+.risk-item {
+  font-size: 13px;
+  margin-bottom: 8px;
+  padding-left: 14px;
+  position: relative;
+  line-height: 1.5;
+}
+.risk-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.risk-high .risk-item::before { background: var(--red); }
+.risk-med .risk-item::before { background: var(--amber); }
+.risk-low .risk-item::before { background: var(--green); }
+.risk-mit {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* ===== AGENDA ===== */
+.agenda {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-dark) 100%);
+  color: var(--cream);
+  padding: 28px 32px;
+  border-radius: 8px;
+  border: 1.5px solid var(--navy);
+}
+.agenda-head {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--terra-light);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agenda h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 18px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agenda h3:first-of-type { margin-top: 0; }
+.agenda ol, .agenda ul {
+  padding-left: 22px;
+  font-size: 14px;
+}
+.agenda li {
+  margin-bottom: 6px;
+  color: rgba(253,250,243,0.92);
+}
+.agenda li code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: rgba(255,255,255,0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--terra-light);
+}
+
+/* ===== UTILITIES ===== */
+.kbd {
+  font-family: 'JetBrains Mono', monospace;
+  background: white;
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.foot {
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-family: 'JetBrains Mono', monospace;
+}
+.foot strong { color: var(--terra); }
+
+@media print {
+  body { padding: 0; background: white; }
+  .phase-body { display: block !important; }
+  .phase-toggle { display: none; }
+  .agenda { background: var(--navy) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ===== MASTHEAD ===== -->
+<header class="masthead">
+  <div class="eyebrow"><i class="ti ti-cube-3d-sphere"></i> &nbsp; DADS 7202 Deep Learning · NIDA</div>
+  <div class="title-row">
+    <div>
+      <h1>FreshCheck Deep Lab</h1>
+      <div class="subtitle">Project Work Flow · Team Planning Meeting · 17 พ.ค. 2026</div>
+    </div>
+    <div class="countdown">
+      <div class="countdown-big">35</div>
+      <div class="countdown-lbl">วันเหลือก่อน Deadline</div>
+    </div>
+  </div>
+</header>
+
+<div class="date-strip">
+  <div class="date-cell"><i class="ti ti-calendar-event"></i> Today: Sun 17 May 2026</div>
+  <div class="date-cell"><i class="ti ti-flag"></i> Proposal: SUBMITTED</div>
+  <div class="date-cell"><i class="ti ti-target"></i> Final Report: Sun 21 Jun 2026 <span style="color:var(--terra-light);font-weight:600">(เลื่อนเข้ามา)</span></div>
+  <div class="date-cell"><i class="ti ti-clock"></i> 5 weeks remaining</div>
+</div>
+
+<!-- ===== 1. CURRENT STATUS ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-num">1</div>
+    <div class="section-title">เราอยู่ตรงไหน</div>
+    <div class="section-sub">เริ่มต้นด้วยการดูภาพรวมว่าอะไรเสร็จแล้ว อะไรกำลังทำ อะไรยังรอ</div>
+  </div>
+
+  <div class="status-grid">
+    <div class="status-col done">
+      <div class="status-head"><i class="ti ti-circle-check"></i> เสร็จแล้ว</div>
+      <div class="status-item"><i class="ti ti-file-text"></i><span>Proposal v3 (24 refs IEEE)</span></div>
+      <div class="status-item"><i class="ti ti-database"></i><span>Phase 0: Kaggle data + group-aware split</span></div>
+      <div class="status-item"><i class="ti ti-notebook"></i><span>Phase 1 notebook (พร้อมรัน)</span></div>
+      <div class="status-item"><i class="ti ti-mask"></i><span>CVAT polygon annotations (Thai 150 รูป)</span></div>
+    </div>
+    <div class="status-col active">
+      <div class="status-head"><i class="ti ti-progress"></i> สัปดาห์นี้</div>
+      <div class="status-item"><i class="ti ti-player-play"></i><span>Run Phase 1 บน Colab (EfficientNet-B0)</span></div>
+      <div class="status-item"><i class="ti ti-photo"></i><span>เก็บ Thai pork loin ที่เหลือ (ถ้ายังไม่ครบ 150)</span></div>
+      <div class="status-item"><i class="ti ti-tag"></i><span>3 คนใส่ classification tag ใน CVAT</span></div>
+      <div class="status-item"><i class="ti ti-search"></i><span>Jirapong: research SAM 3 setup</span></div>
+    </div>
+    <div class="status-col pending">
+      <div class="status-head"><i class="ti ti-hourglass"></i> ยังรออยู่</div>
+      <div class="status-item"><i class="ti ti-mask"></i><span>Phase 2: Step 1 Segmentation (3 exp)</span></div>
+      <div class="status-item"><i class="ti ti-test-pipe"></i><span>Phase 3: Integration + 5-fold CV</span></div>
+      <div class="status-item"><i class="ti ti-stack-2"></i><span>Phase 4: Patch+Vote+Triage (optional)</span></div>
+      <div class="status-item"><i class="ti ti-book"></i><span>Final Report manuscript</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 2. ROADMAP ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-num">2</div>
+    <div class="section-title">แผนการทำงาน 7 สัปดาห์</div>
+    <div class="section-sub">ทุกสัปดาห์มี deliverable ชัดเจน</div>
+  </div>
+
+  <div class="note note-warn" style="margin-bottom:16px">
+    <i class="ti ti-alert-triangle"></i>
+    <div><b>Deadline เลื่อนเข้ามา:</b> จาก 6 ก.ค. → 21 มิ.ย. = <b>หายไป 2 สัปดาห์</b> ต้อง compress แผนเดิม: รวม Phase 2 ให้สั้นลง 1 สัปดาห์ + ตัด Phase 4 และ NEW TRACK ออกจาก scope (เก็บไว้เป็น future work)</div>
+  </div>
+
+  <div class="timeline">
+    <div class="weeks-row" style="grid-template-columns:repeat(5,1fr)">
+      <div class="week now">
+        <span class="now-marker">NOW</span>
+        <div class="week-num">WEEK 1</div>
+        <div class="week-dates">18–24 พ.ค.</div>
+        <div class="week-task">Run Phase 1 + เก็บ Thai data + start CVAT tags</div>
+      </div>
+      <div class="week">
+        <div class="week-num">WEEK 2</div>
+        <div class="week-dates">25–31 พ.ค.</div>
+        <div class="week-task">Phase 2: CVAT parser + Seg Exp 1+2 (SAM 3, Florence-2→SAM 3)</div>
+      </div>
+      <div class="week">
+        <div class="week-num">WEEK 3</div>
+        <div class="week-dates">1–7 มิ.ย.</div>
+        <div class="week-task">Phase 2: Seg Exp 3 (DINOv3) + เลือก best mask → เริ่ม Phase 3</div>
+      </div>
+      <div class="week">
+        <div class="week-num">WEEK 4</div>
+        <div class="week-dates">8–14 มิ.ย.</div>
+        <div class="week-task">Phase 3: 5-fold CV รัน 3 classifiers + analyze</div>
+      </div>
+      <div class="week deadline">
+        <div class="week-num">WEEK 5</div>
+        <div class="week-dates">15–21 มิ.ย.</div>
+        <div class="week-task">Final Report + Turnitin + Presentation + Submit</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note note-info" style="margin-top:18px">
+    <i class="ti ti-info-circle"></i>
+    <div><b>Scope cut:</b> Phase 4 (Patch+Vote+Triage) และ NEW TRACK (DINOv3 end-to-end) <b>ถูกตัดออกจาก scope</b> เพราะ deadline เลื่อน — ทำเฉพาะที่ Proposal commit ไว้: Step 1 (Exp 1+2+3) + Step 2 (Exp 1+2+3) + 5-fold CV ก็เพียงพอตาม Comment อาจารย์</div>
+  </div>
+</section>
+
+<!-- ===== 3. PHASES DETAIL ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-num">3</div>
+    <div class="section-title">รายละเอียดทุก Phase</div>
+    <div class="section-sub">คลิกเพื่อดูขั้นตอนแบบ step-by-step</div>
+  </div>
+
+  <!-- PHASE 1 -->
+  <div class="phase open">
+    <div class="phase-head" onclick="this.parentElement.classList.toggle('open')">
+      <div class="phase-icon p1"><i class="ti ti-cpu"></i></div>
+      <div class="phase-meta">
+        <div class="phase-title">Phase 1 · Step 2 Exp 1: EfficientNet-B0 (baseline)</div>
+        <div class="phase-sub">
+          <span><i class="ti ti-user"></i> Jirapong</span>
+          <span><i class="ti ti-clock"></i> 1.5 ชม. รัน + 30 นาที review</span>
+          <span><i class="ti ti-calendar"></i> Week 1 (สัปดาห์นี้)</span>
+        </div>
+      </div>
+      <div class="phase-badge b-ready">พร้อมรัน</div>
+      <i class="ti ti-chevron-down phase-toggle"></i>
+    </div>
+    <div class="phase-body">
+      <div class="phase-grid">
+        <div>
+          <div class="field-lbl"><i class="ti ti-target"></i> เป้าหมาย</div>
+          <div class="field-content">ได้ baseline performance ของ EfficientNet-B0 บน Kaggle Meat Freshness (2,266 รูป) เพื่อเอาไปเทียบกับ Swin-T (Exp 2) และ DINOv3 (Exp 3) ใน Phase 3</div>
+        </div>
+        <div>
+          <div class="field-lbl"><i class="ti ti-package"></i> Output</div>
+          <div class="field-content">
+            <code>models/classification/phase1_efficientnet_b0_best.pth</code><br>
+            + ตัวเลข Accuracy / Macro-F1 / Confusion Matrix
+          </div>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="steps-title"><i class="ti ti-list-check"></i> ทำตามนี้ทีละขั้น</div>
+        <ol>
+          <li>เปิด <code>colab.research.google.com</code> ใน browser</li>
+          <li>เมนู <code>File → Upload notebook</code> → เลือก <code>FreshCheck_Phase1_Classification.ipynb</code></li>
+          <li>เมนู <code>Runtime → Change runtime type → T4 GPU → Save</code></li>
+          <li>กด <span class="kbd">Run all</span> (หรือ <code>Runtime → Run all</code>)</li>
+          <li>Cell แรกๆ จะถาม Drive permission — กด <b>Allow</b></li>
+          <li>รอ ~45-90 นาที (epoch 15 รอบ + early stopping)</li>
+          <li>ดูผลที่ section สุดท้าย: Accuracy, Macro-F1, per-class F1, Confusion Matrix</li>
+          <li>Screenshot ผลลัพธ์ส่งให้ Techasit review</li>
+        </ol>
+      </div>
+
+      <div class="note note-info">
+        <i class="ti ti-bulb"></i>
+        <div><b>Prerequisites พร้อมแล้ว:</b> Phase 0 splits (<code>splits/kaggle_train.csv</code> + <code>kaggle_val.csv</code>) อยู่ใน Drive แล้ว — Phase 1 จะอ่านจากไฟล์นี้โดยอัตโนมัติ</div>
+      </div>
+      <div class="note note-warn">
+        <i class="ti ti-alert-triangle"></i>
+        <div><b>ถ้าเจอ Out of Memory (OOM):</b> ลด <code>BATCH_SIZE</code> จาก 32 เป็น 16 หรือ 8 ใน cell ตัวเลือก</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 2 -->
+  <div class="phase">
+    <div class="phase-head" onclick="this.parentElement.classList.toggle('open')">
+      <div class="phase-icon p2"><i class="ti ti-mask"></i></div>
+      <div class="phase-meta">
+        <div class="phase-title">Phase 2 · Step 1: Material-aware Segmentation (3 experiments)</div>
+        <div class="phase-sub">
+          <span><i class="ti ti-user"></i> Jirapong (lead) + Yingphan (data)</span>
+          <span><i class="ti ti-clock"></i> 2 สัปดาห์</span>
+          <span><i class="ti ti-calendar"></i> Week 2-3 (25 พ.ค. – 7 มิ.ย.)</span>
+        </div>
+      </div>
+      <div class="phase-badge b-pending">รอ Thai data + CVAT</div>
+      <i class="ti ti-chevron-down phase-toggle"></i>
+    </div>
+    <div class="phase-body">
+      <div class="phase-grid">
+        <div>
+          <div class="field-lbl"><i class="ti ti-target"></i> เป้าหมาย</div>
+          <div class="field-content">ทดลอง 3 วิธี segment เนื้อหมูออกจาก packaging แล้วเลือกตัวที่ดีที่สุด (วัด IoU + Dice เทียบ CVAT GT) ส่งต่อ Phase 3</div>
+        </div>
+        <div>
+          <div class="field-lbl"><i class="ti ti-package"></i> Output</div>
+          <div class="field-content">Best mask method + ตาราง IoU/Dice ของ 3 experiments<br>+ Phase 2 notebook</div>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="steps-title"><i class="ti ti-list-check"></i> 3 Experiments ตามที่อาจารย์ comment</div>
+        <ol>
+          <li><b>Exp 1:</b> SAM 3 + text prompt <code>"raw meat"</code> — zero-shot, ไม่ต้อง train</li>
+          <li><b>Exp 2:</b> Florence-2 (หรือ Grounding DINO) → SAM 3 → refine boundary</li>
+          <li><b>Exp 3:</b> DINOv3 frozen + train segmentation head (เป็นตัวเดียวที่ต้อง train ใน Step 1)</li>
+          <li>วัด IoU + Dice ของแต่ละ Exp เทียบกับ CVAT GT masks</li>
+          <li>เลือก Exp ที่ดีที่สุด → ส่งต่อ Phase 3</li>
+        </ol>
+      </div>
+
+      <div class="steps" style="margin-top:14px">
+        <div class="steps-title"><i class="ti ti-list-check"></i> งานที่ต้องทำคู่ขนาน (Yingphan + ทีม)</div>
+        <ol>
+          <li><b>Yingphan:</b> เก็บ Thai pork loin ครบ 150 รูป ใช้ Master Filename Format:<br><code>YYYYMMDD_HHMM_FR_PK_P01.jpg</code></li>
+          <li><b>3 คน:</b> นัดเวลามาเปิด CVAT พร้อมกัน → ใส่ classification tag (Fresh/HF/SP) ทุกรูป → majority vote</li>
+          <li><b>Jirapong:</b> Export CVAT XML format <code>CVAT for images 1.1</code> → save ใน Drive</li>
+        </ol>
+      </div>
+
+      <div class="note note-warn">
+        <i class="ti ti-alert-triangle"></i>
+        <div><b>Risk: SAM 3 ใหม่มาก (Nov 2025)</b> — อาจต้อง <code>web_search</code> หา HuggingFace setup + ลอง text prompt หลายแบบ (<code>"raw meat"</code> / <code>"pork tissue"</code> / <code>"red meat"</code>) ดู prompt ไหนได้ผลดีสุด</div>
+      </div>
+      <div class="note note-info">
+        <i class="ti ti-info-circle"></i>
+        <div><b>DINOv3 + seg head:</b> ต้องการ training data — ใช้ Kaggle 2,266 รูป + auto-mask ของ SAM 3 ก็ได้ (pseudo-label) หรือ fine-tune ด้วย CVAT GT ตรงๆ ก็ได้</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 3 -->
+  <div class="phase">
+    <div class="phase-head" onclick="this.parentElement.classList.toggle('open')">
+      <div class="phase-icon p3"><i class="ti ti-test-pipe"></i></div>
+      <div class="phase-meta">
+        <div class="phase-title">Phase 3 · Integration + Thai Test (5-fold CV)</div>
+        <div class="phase-sub">
+          <span><i class="ti ti-user"></i> Techasit (lead) + Jirapong + Yingphan</span>
+          <span><i class="ti ti-clock"></i> 1.5 สัปดาห์ (compressed)</span>
+          <span><i class="ti ti-calendar"></i> Week 3-4 (overlap with Phase 2 end)</span>
+        </div>
+      </div>
+      <div class="phase-badge b-pending">รอ Phase 2</div>
+      <i class="ti ti-chevron-down phase-toggle"></i>
+    </div>
+    <div class="phase-body">
+      <div class="phase-grid">
+        <div>
+          <div class="field-lbl"><i class="ti ti-target"></i> เป้าหมาย</div>
+          <div class="field-content">รัน pipeline เต็ม (best segmenter + 3 classifiers) บน Thai 150 รูป ด้วย 5-fold StratifiedGroupKFold CV → ได้ตารางผลสำหรับ Report</div>
+        </div>
+        <div>
+          <div class="field-lbl"><i class="ti ti-package"></i> Output</div>
+          <div class="field-content">Final results table (mean ± std × 5 folds) สำหรับ Section "Experimental Result and Discussion" ใน Report</div>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="steps-title"><i class="ti ti-list-check"></i> ลำดับการทำ</div>
+        <ol>
+          <li>โหลด Thai 150 รูป + parse CVAT classification tags (majority vote)</li>
+          <li>Apply best segmenter จาก Phase 2 → ได้ masked images ครบ 150 รูป</li>
+          <li>Setup 5-fold StratifiedGroupKFold (group=piece_id, stratify=class)</li>
+          <li>วน loop 5 folds รัน 3 classifiers:<br>
+            &nbsp;&nbsp;• <b>Exp 1:</b> EfficientNet-B0 (จาก Phase 1)<br>
+            &nbsp;&nbsp;• <b>Exp 2:</b> Swin-T (fine-tune ImageNet pretrained)<br>
+            &nbsp;&nbsp;• <b>Exp 3:</b> DINOv3 frozen + train cls head
+          </li>
+          <li>คำนวณ metrics ต่อ fold: Accuracy, Macro-F1, per-class F1, Confusion Matrix</li>
+          <li>Report mean ± std across 5 folds</li>
+          <li>Compare 3 classifiers → identify best architecture</li>
+        </ol>
+      </div>
+
+      <div class="note note-info">
+        <i class="ti ti-bulb"></i>
+        <div><b>Why StratifiedGroupKFold (ไม่ใช่ GroupShuffleSplit):</b> Thai 150 รูปเล็กมาก — single 80/20 split = val 30 รูป variance สูง 5-fold CV รับประกันทุกรูปเป็น val 1 ครั้ง + balance class ทุก fold</div>
+      </div>
+      <div class="note note-warn">
+        <i class="ti ti-alert-triangle"></i>
+        <div><b>Compute time estimate:</b> 5 folds × 3 classifiers × ~20-30 min/train = <b>~5-7 ชั่วโมง GPU</b> รวม — ต้องวางแผน Colab session ดีๆ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 4 OPTIONAL -->
+  <div class="phase">
+    <div class="phase-head" onclick="this.parentElement.classList.toggle('open')">
+      <div class="phase-icon p4" style="opacity:0.5"><i class="ti ti-stack-2"></i></div>
+      <div class="phase-meta">
+        <div class="phase-title" style="opacity:0.7"><s>Phase 4 · Patch + Vote + Triage</s> <span style="font-weight:400;color:var(--red)">— CUT</span></div>
+        <div class="phase-sub">
+          <span><i class="ti ti-ban"></i> ตัดออกจาก scope</span>
+          <span><i class="ti ti-bookmark"></i> เก็บเป็น future work ใน Final Report</span>
+        </div>
+      </div>
+      <div class="phase-badge" style="background:var(--red-soft);color:var(--red)">CUT</div>
+      <i class="ti ti-chevron-down phase-toggle"></i>
+    </div>
+    <div class="phase-body">
+      <div class="note note-block">
+        <i class="ti ti-ban"></i>
+        <div><b>ตัดออกเนื่องจาก deadline เลื่อน</b> — เดิมวางแผนทำ Week 6 แต่ตอนนี้เหลือแค่ 5 weeks ไม่มี buffer สำหรับ optional phase ระบุใน Final Report (Section 6: Conclusion and future work) ว่าเป็น direction ที่น่าศึกษาต่อ</div>
+      </div>
+      <div class="field-lbl" style="margin-top:14px"><i class="ti ti-info-circle"></i> ไอเดียเดิม (เก็บเป็น reference)</div>
+      <div class="field-content">
+        ทำเฉพาะถ้า Phase 2 segmentation ออกมาไม่สะอาดพอ — Patch sampling 5-8 patches + confidence-weighted vote + 3-state Decision Triage ตามที่ Proposal เขียนไว้ใน Section 3
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW TRACK -->
+  <div class="phase">
+    <div class="phase-head" onclick="this.parentElement.classList.toggle('open')">
+      <div class="phase-icon pnew" style="opacity:0.5"><i class="ti ti-route"></i></div>
+      <div class="phase-meta">
+        <div class="phase-title" style="opacity:0.7"><s>NEW TRACK · DINOv3 end-to-end</s> <span style="font-weight:400;color:var(--red)">— CUT</span></div>
+        <div class="phase-sub">
+          <span><i class="ti ti-ban"></i> ตัดออกจาก scope</span>
+          <span><i class="ti ti-bookmark"></i> เก็บเป็น future work ใน Final Report</span>
+        </div>
+      </div>
+      <div class="phase-badge" style="background:var(--red-soft);color:var(--red)">CUT</div>
+      <i class="ti ti-chevron-down phase-toggle"></i>
+    </div>
+    <div class="phase-body">
+      <div class="note note-block">
+        <i class="ti ti-ban"></i>
+        <div><b>ตัดออกเนื่องจาก deadline เลื่อน</b> — เดิมวางไว้ Week 6-7 อาจารย์เน้นไว้ว่า optional (<i>"ไม่ต้องทำครบทุกอันที่เสนอไปก็ได้"</i>) เก็บไว้เป็น direction น่าสนใจในอนาคต</div>
+      </div>
+      <div class="field-lbl" style="margin-top:14px"><i class="ti ti-info-circle"></i> ไอเดียเดิม (เก็บเป็น reference)</div>
+      <div class="field-content">
+        <code>[DINOv3] → [segmentation head] → [classification head]</code><br>
+        Sequential pipeline, end-to-end training ด้วย <code>loss = seg_loss + cls_loss</code> — ใช้ DINOv3 ตัวเดียวรับจบทั้ง segment + classify
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 4. ROLE MATRIX ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-num">4</div>
+    <div class="section-title">ใครทำอะไร</div>
+    <div class="section-sub">Role assignment ทุก Phase</div>
+  </div>
+
+  <div class="matrix">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:130px">Phase</th>
+          <th>Jirapong <span class="role-tag role-m">M</span> Model</th>
+          <th>Techasit <span class="role-tag role-e">E</span> Eval + PM</th>
+          <th>Yingphan <span class="role-tag role-d">D</span> Data</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="phase-cell">Phase 1</td>
+          <td>รัน notebook EfficientNet-B0</td>
+          <td>Review metrics + verify reproducibility</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="phase-cell">Phase 2</td>
+          <td>Build CVAT parser + รัน 3 seg experiments</td>
+          <td>Verify IoU/Dice metrics + audit experiments</td>
+          <td>เก็บ Thai data ครบ 150 + จัด CVAT session</td>
+        </tr>
+        <tr>
+          <td class="phase-cell">Phase 3</td>
+          <td>Build integrated pipeline (mask + 3 classifiers)</td>
+          <td>Build 5-fold CV framework + run analysis</td>
+          <td>Process Thai data + parse classification tags</td>
+        </tr>
+        <tr>
+          <td class="phase-cell">CVAT tags</td>
+          <td>Add tags (1/3 vote)</td>
+          <td>Add tags (1/3 vote)</td>
+          <td>Add tags (1/3 vote) + reconcile disagreements</td>
+        </tr>
+        <tr>
+          <td class="phase-cell">Final Report</td>
+          <td>Section 3 (Proposed Method) + figures</td>
+          <td>Abstract, Section 5 (Results), coord + Turnitin</td>
+          <td>Section 4 (Data) + Data availability</td>
+        </tr>
+        <tr>
+          <td class="phase-cell">Presentation</td>
+          <td>Live demo + Methods slides</td>
+          <td>Opening + Results slides + Q&amp;A coord</td>
+          <td>Data slides + closing</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===== 5. RISKS ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-num">5</div>
+    <div class="section-title">ความเสี่ยงที่ต้องระวัง</div>
+    <div class="section-sub">รู้ก่อน เตรียมก่อน</div>
+  </div>
+
+  <div class="risks-grid">
+    <div class="risk risk-high">
+      <div class="risk-head"><i class="ti ti-alert-octagon"></i> HIGH</div>
+      <div class="risk-item">
+        <b>SAM 3 ใหม่มาก (Nov 2025)</b><br>
+        Setup อาจติดบั๊ก / library ยังไม่ stable
+        <div class="risk-mit">→ web_search HuggingFace docs ก่อน Week 2 / มี fallback คือ Florence-2 → SAM 2</div>
+      </div>
+      <div class="risk-item">
+        <b>Compute time (Phase 3)</b><br>
+        5 folds × 3 classifiers = 5-7 ชม. GPU
+        <div class="risk-mit">→ ใช้ Colab Pro หรือแบ่ง 3 sessions / save checkpoints</div>
+      </div>
+    </div>
+
+    <div class="risk risk-med">
+      <div class="risk-head"><i class="ti ti-alert-triangle"></i> MEDIUM</div>
+      <div class="risk-item">
+        <b>Thai data variance (150 รูปเล็ก)</b><br>
+        Single split = noisy metric
+        <div class="risk-mit">→ 5-fold CV (mean ± std) ตาม Proposal commitment</div>
+      </div>
+      <div class="risk-item">
+        <b>Class imbalance ใน Kaggle</b><br>
+        FRESH 38% : HF 35% : SP 27%
+        <div class="risk-mit">→ class-weighted CE (already in Phase 1 notebook)</div>
+      </div>
+      <div class="risk-item">
+        <b>DINOv3 seg head training data</b><br>
+        ต้องการ ground truth masks
+        <div class="risk-mit">→ ใช้ SAM 3 auto-mask Kaggle เป็น pseudo-label หรือ fine-tune CVAT GT</div>
+      </div>
+    </div>
+
+    <div class="risk risk-low">
+      <div class="risk-head"><i class="ti ti-info-circle"></i> LOW</div>
+      <div class="risk-item">
+        <b>CVAT tagging workload</b><br>
+        150 รูป × 3 คน
+        <div class="risk-mit">→ ~3-4 ชม. ต่อคน ทำเสาร์-อาทิตย์เดียวจบ</div>
+      </div>
+      <div class="risk-item">
+        <b>Reference verification</b><br>
+        24 refs ต้อง re-check ตอน Final Report
+        <div class="risk-mit">→ Techasit own / Turnitin similarity check ก่อนส่ง</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 6. MEETING AGENDA ===== -->
+<section class="section">
+  <div class="section-head">
+    <div class="section-num">6</div>
+    <div class="section-title">วาระประชุมวันนี้</div>
+    <div class="section-sub">ตัดสินใจร่วมกัน 3 หัวข้อ</div>
+  </div>
+
+  <div class="agenda">
+    <div class="agenda-head"><i class="ti ti-checklist"></i> Decisions Needed</div>
+
+    <h3><i class="ti ti-target"></i> 1. Confirm Compressed Scope</h3>
+    <ul>
+      <li><b>Must do:</b> Step 1 (Exp 1+2+3) + Step 2 (Exp 1+2+3) + 5-fold CV — ตาม Proposal + Comment อาจารย์</li>
+      <li><b>CUT:</b> Phase 4 (Patch+Vote+Triage) + NEW TRACK (DINOv3 end-to-end) → ระบุเป็น future work ใน Report Section 6</li>
+      <li>คำถาม: ทุกคนตกลงตัด optional phases ออกไหม? หรือมีทางเลือกอื่น?</li>
+    </ul>
+
+    <h3><i class="ti ti-calendar-stats"></i> 2. Confirm Compressed Milestones (5 weeks)</h3>
+    <ol>
+      <li><b>Week 1 (18-24 พ.ค.):</b> <code>Phase 1 run</code> + Thai data + CVAT tags</li>
+      <li><b>Week 2 (25-31 พ.ค.):</b> <code>Phase 2</code> CVAT parser + Seg Exp 1+2</li>
+      <li><b>Week 3 (1-7 มิ.ย.):</b> <code>Phase 2</code> Seg Exp 3 + เริ่ม <code>Phase 3</code></li>
+      <li><b>Week 4 (8-14 มิ.ย.):</b> <code>Phase 3</code> 5-fold CV + เริ่ม Report writing</li>
+      <li><b>Week 5 (15-21 มิ.ย.):</b> Final Report + Turnitin + Presentation + Submit (deadline <code>Sun 21 Jun</code>)</li>
+    </ol>
+
+    <h3><i class="ti ti-users"></i> 3. Confirm This Week's Actions</h3>
+    <ul>
+      <li><b>Jirapong:</b> รัน <code>FreshCheck_Phase1_Classification_v1.ipynb</code> ภายในวันอังคาร 19 พ.ค. + research SAM 3 setup</li>
+      <li><b>Yingphan:</b> Status Thai data — ครบ 150 หรือยัง? ถ้ายัง เก็บที่เหลือภายในศุกร์ 22 พ.ค.</li>
+      <li><b>ทุกคน:</b> นัดวันมาทำ CVAT classification tags พร้อมกัน (เสาร์-อาทิตย์ที่ 23-24 พ.ค.?)</li>
+      <li><b>Techasit:</b> Review Phase 1 metrics + <b>เริ่ม draft outline ของ Final Report ทันที</b> (สำคัญเพราะ Week 5 ทำได้แค่ polish)</li>
+    </ul>
+  </div>
+</section>
+
+<div class="foot">
+  Generated <strong>17 พ.ค. 2026</strong> · FreshCheck Deep Lab · NIDA DADS 7202 · <strong>35 days to deadline (21 Jun)</strong>
+</div>
+
+</div>
+
+<script>
+// Open Phase 1 by default (current week)
+// Other phases stay collapsed for cleaner overview
+</script>
+</body>
+</html>
