@@ -209,12 +209,53 @@ python run_freshcheck.py predict --input-path <image_or_folder> --checkpoint-dir
 python run_freshcheck.py prepare-cvat --thai-data-dir <thai_images_dir> --cvat-xml-path <annotations.xml> --output-dir artifacts/phase2
 ```
 
-`--models all` จะรัน `efficientnet_b0` และ `swin_t` ต่อเนื่องให้ในคำสั่งเดียว
+`--models all` จะรัน `efficientnet_b0`, `swin_t`, และ `convnext_tiny` ต่อเนื่องให้ในคำสั่งเดียว
 
 ข้อจำกัดตอนนี้:
 - Local CLI ครอบคลุม Phase 1 classifiers และ Phase 2 foundation (CVAT → masks/CSV)
 - Notebook ที่พึ่ง gated Hugging Face models (`SAM3`, `Florence-2`, `DINOv3`) ยังไม่ได้ย้ายเป็น local runner เพราะต้องใช้ access/token จริงก่อน
   และ API ของแต่ละโมเดลควร implement จาก environment ที่ยืนยันแล้ว ไม่ควรเดา
+
+### Compare Existing Checkpoints From Google Drive
+
+ถ้ามี checkpoint เดิมจาก notebook เก่าอยู่แล้ว เช่น:
+- `phase1_efficientnet_b0_best.pth`
+- `phase2_swin_t_best.pth`
+
+สามารถ evaluate หรือ predict ได้ทันทีโดยไม่ต้อง rename:
+
+```bash
+python run_freshcheck.py evaluate \
+  --csv /content/drive/MyDrive/FreshCheck/thai_test/thai_test_manifest.csv \
+  --checkpoint-paths \
+    efficientnet_b0=/content/drive/MyDrive/FreshCheck/models/classification/phase1_efficientnet_b0_best.pth \
+    swin_t=/content/drive/MyDrive/FreshCheck/models/classification/phase2_swin_t_best.pth \
+  --output-dir /content/drive/MyDrive/FreshCheck/artifacts/eval \
+  --models efficientnet_b0 swin_t
+```
+
+```bash
+python run_freshcheck.py predict \
+  --input-path /content/drive/MyDrive/FreshCheck/thai_test/images \
+  --checkpoint-paths \
+    efficientnet_b0=/content/drive/MyDrive/FreshCheck/models/classification/phase1_efficientnet_b0_best.pth \
+    swin_t=/content/drive/MyDrive/FreshCheck/models/classification/phase2_swin_t_best.pth \
+  --output-dir /content/drive/MyDrive/FreshCheck/artifacts/predict \
+  --models efficientnet_b0 swin_t
+```
+
+### Train One More Model: ConvNeXt-Tiny
+
+เพิ่ม baseline ใหม่ได้ทันทีโดยไม่ต้องรอ gated access:
+
+```bash
+python run_freshcheck.py train \
+  --train-csv /content/drive/MyDrive/FreshCheck/artifacts/splits/kaggle_train.csv \
+  --val-csv /content/drive/MyDrive/FreshCheck/artifacts/splits/kaggle_val.csv \
+  --output-dir /content/drive/MyDrive/FreshCheck/artifacts/train \
+  --models convnext_tiny \
+  --epochs 15
+```
 
 ## Colab Quick Start
 

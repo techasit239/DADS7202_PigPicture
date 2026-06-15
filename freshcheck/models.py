@@ -34,13 +34,28 @@ def build_model(model_name: str, num_classes: int = 3, dropout: float = 0.3, pre
         )
         return model
 
-    weights = _safe_weights(lambda: models.Swin_T_Weights.IMAGENET1K_V1) if pretrained else None
+    if model_name == "swin_t":
+        weights = _safe_weights(lambda: models.Swin_T_Weights.IMAGENET1K_V1) if pretrained else None
+        try:
+            model = models.swin_t(weights=weights)
+        except Exception:
+            model = models.swin_t(weights=None)
+        in_features = model.head.in_features
+        model.head = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Linear(in_features, num_classes),
+        )
+        return model
+
+    weights = _safe_weights(lambda: models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1) if pretrained else None
     try:
-        model = models.swin_t(weights=weights)
+        model = models.convnext_tiny(weights=weights)
     except Exception:
-        model = models.swin_t(weights=None)
-    in_features = model.head.in_features
-    model.head = nn.Sequential(
+        model = models.convnext_tiny(weights=None)
+    in_features = model.classifier[2].in_features
+    model.classifier = nn.Sequential(
+        model.classifier[0],
+        model.classifier[1],
         nn.Dropout(p=dropout),
         nn.Linear(in_features, num_classes),
     )

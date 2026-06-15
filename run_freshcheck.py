@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from freshcheck.config import MODEL_NAMES
+from freshcheck.config import LEGACY_CHECKPOINT_FILENAMES, MODEL_NAMES
 from freshcheck.data import (
     ClassificationDataset,
     PredictionDataset,
@@ -31,6 +31,49 @@ def parse_models(raw_models: list[str]) -> list[str]:
     if invalid:
         raise ValueError(f"Unsupported models: {invalid}. Choose from {MODEL_NAMES} or all.")
     return raw_models
+
+
+def parse_checkpoint_overrides(raw_overrides: list[str] | None) -> dict[str, Path]:
+    if not raw_overrides:
+        return {}
+    overrides: dict[str, Path] = {}
+    for item in raw_overrides:
+        if "=" not in item:
+            raise ValueError(
+                f"Invalid checkpoint override '{item}'. Use format model_name=/path/to/checkpoint.pth"
+            )
+        model_name, path_text = item.split("=", 1)
+        if model_name not in MODEL_NAMES:
+            raise ValueError(f"Unsupported model in checkpoint override: {model_name}")
+        overrides[model_name] = Path(path_text)
+    return overrides
+
+
+def resolve_checkpoint(model_name: str, checkpoint_dir: str | None, overrides: dict[str, Path]) -> Path:
+    if model_name in overrides:
+        checkpoint = overrides[model_name]
+        if not checkpoint.exists():
+            raise FileNotFoundError(f"Checkpoint override for {model_name} not found: {checkpoint}")
+        return checkpoint
+
+    if not checkpoint_dir:
+        raise FileNotFoundError(
+            f"No checkpoint provided for {model_name}. Pass --checkpoint-dir or --checkpoint-paths."
+        )
+
+    checkpoint_root = Path(checkpoint_dir)
+    for filename in LEGACY_CHECKPOINT_FILENAMES[model_name]:
+        candidate = checkpoint_root / filename
+        if candidate.exists():
+            return candidate
+        nested = checkpoint_root / model_name / filename
+        if nested.exists():
+            return nested
+
+    raise FileNotFoundError(
+        f"Missing checkpoint for {model_name} under {checkpoint_root}. "
+        f"Tried: {LEGACY_CHECKPOINT_FILENAMES[model_name]}"
+    )
 
 
 def make_loader(df: pd.DataFrame, img_size: int, batch_size: int, num_workers: int, train: bool):
@@ -118,12 +161,11 @@ def command_evaluate(args) -> None:
     eval_df = load_dataframe(args.csv)
     loader = make_loader(eval_df, args.img_size, args.batch_size, args.num_workers, train=False)
     output_dir = ensure_dir(args.output_dir)
+    checkpoint_overrides = parse_checkpoint_overrides(args.checkpoint_paths)
 
     criterion = torch.nn.CrossEntropyLoss()
     for model_name in models:
-        checkpoint = Path(args.checkpoint_dir) / f"{model_name}_best.pt"
-        if not checkpoint.exists():
-            raise FileNotFoundError(f"Missing checkpoint for {model_name}: {checkpoint}")
+        checkpoint = resolve_checkpoint(model_name, args.checkpoint_dir, checkpoint_overrides)
         model = build_model(model_name, pretrained=False, dropout=args.dropout).to(device)
         model.load_state_dict(torch.load(checkpoint, map_location=device))
         metrics = evaluate(model, loader, criterion, device, desc=f"eval:{model_name}")
@@ -155,11 +197,10 @@ def command_predict(args) -> None:
         pin_memory=True,
     )
     output_dir = ensure_dir(args.output_dir)
+    checkpoint_overrides = parse_checkpoint_overrides(args.checkpoint_paths)
 
     for model_name in models:
-        checkpoint = Path(args.checkpoint_dir) / f"{model_name}_best.pt"
-        if not checkpoint.exists():
-            raise FileNotFoundError(f"Missing checkpoint for {model_name}: {checkpoint}")
+        checkpoint = resolve_checkpoint(model_name, args.checkpoint_dir, checkpoint_overrides)
         model = build_model(model_name, pretrained=False, dropout=args.dropout).to(device)
         model.load_state_dict(torch.load(checkpoint, map_location=device))
         rows = predict(model, loader, device)
@@ -227,7 +268,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     evaluate_parser = subparsers.add_parser("evaluate", help="Evaluate checkpoints on a labeled CSV")
     evaluate_parser.add_argument("--csv", required=True)
-    evaluate_parser.add_argument("--checkpoint-dir", required=True)
+    evaluate_parser.add_argument("--checkpoint-dir")
+    evaluate_parser.add_argument(
+        "--checkpoint-paths",
+        nargs="+",
+        help="Optional overrides in the form model_name=/path/to/checkpoint.pth",
+    )
     evaluate_parser.add_argument("--output-dir", required=True)
     for key, kwargs in common_model_args.items():
         evaluate_parser.add_argument(f"--{key.replace('_', '-')}", **kwargs)
@@ -235,7 +281,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     predict_parser = subparsers.add_parser("predict", help="Predict labels for one image or a folder")
     predict_parser.add_argument("--input-path", required=True)
-    predict_parser.add_argument("--checkpoint-dir", required=True)
+    predict_parser.add_argument("--checkpoint-dir")
+    predict_parser.add_argument(
+        "--checkpoint-paths",
+        nargs="+",
+        help="Optional overrides in the form model_name=/path/to/checkpoint.pth",
+    )
     predict_parser.add_argument("--output-dir", required=True)
     for key, kwargs in common_model_args.items():
         predict_parser.add_argument(f"--{key.replace('_', '-')}", **kwargs)
