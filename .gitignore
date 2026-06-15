@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Project artifacts
+artifacts/
+outputs/
+logs/
+models/
+checkpoints/
+phase2/
+tmp/
+temp/
+
+# Data
+data/
+datasets/
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.joblib
+*.pkl
+*.npy
+*.npz
+
+# Secrets
+kaggle.json
+hf_token.txt
+secrets.json

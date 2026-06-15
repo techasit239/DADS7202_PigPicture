@@ -156,7 +156,89 @@ DADS7202_PigPicture/
 
 ---
 
+## GitHub + Colab + Drive Workflow
+
+แนะนำให้ใช้ workflow นี้เป็นค่าเริ่มต้น:
+
+1. เก็บ source code, notebooks, `requirements.txt`, `README.md` ไว้บน GitHub
+2. ใช้ Google Colab เป็นเครื่องรัน train / evaluate / inference
+3. เก็บ dataset, CVAT XML, checkpoints, predictions, logs ไว้บน Google Drive
+4. ถ้าแก้โค้ดบน GitHub ให้กลับไปรัน cell update repo ใน Colab แล้วทำงานต่อ
+
+ไฟล์ที่ใช้เป็น entrypoint:
+- `FreshCheck_Colab_Runner.ipynb` สำหรับ bootstrap จาก GitHub แล้วเรียก `run_freshcheck.py`
+- `run_freshcheck.py` สำหรับ `prepare-splits`, `train`, `evaluate`, `predict`, `prepare-cvat`
+- `freshcheck/` สำหรับ logic หลักของ data/model/training
+
+โครงเก็บไฟล์บน Drive ที่แนะนำ:
+
+```text
+MyDrive/FreshCheck/
+├── data/
+│   ├── kaggle_meat/
+│   ├── thai_retail/
+│   └── thai_retail_cvat_annotations.xml
+└── artifacts/
+    ├── splits/
+    ├── train/
+    ├── eval/
+    ├── predict/
+    └── phase2/
+```
+
+---
+
 ## ⚙️ Setup
+
+## Local CLI Runner
+
+ผมเพิ่ม local runner สำหรับรันโค้ดโดยไม่ต้องเปิด notebook แล้ว:
+
+```bash
+pip install -r requirements.txt
+python run_freshcheck.py --help
+```
+
+รองรับคำสั่งหลัก:
+
+```bash
+python run_freshcheck.py prepare-splits --data-dir <kaggle_images_dir> --output-dir artifacts/splits
+python run_freshcheck.py train --train-csv artifacts/splits/kaggle_train.csv --val-csv artifacts/splits/kaggle_val.csv --output-dir artifacts/train --models all
+python run_freshcheck.py evaluate --csv artifacts/splits/kaggle_val.csv --checkpoint-dir artifacts/train/checkpoints --output-dir artifacts/eval --models all
+python run_freshcheck.py predict --input-path <image_or_folder> --checkpoint-dir artifacts/train/checkpoints --output-dir artifacts/predict --models all
+python run_freshcheck.py prepare-cvat --thai-data-dir <thai_images_dir> --cvat-xml-path <annotations.xml> --output-dir artifacts/phase2
+```
+
+`--models all` จะรัน `efficientnet_b0` และ `swin_t` ต่อเนื่องให้ในคำสั่งเดียว
+
+ข้อจำกัดตอนนี้:
+- Local CLI ครอบคลุม Phase 1 classifiers และ Phase 2 foundation (CVAT → masks/CSV)
+- Notebook ที่พึ่ง gated Hugging Face models (`SAM3`, `Florence-2`, `DINOv3`) ยังไม่ได้ย้ายเป็น local runner เพราะต้องใช้ access/token จริงก่อน
+  และ API ของแต่ละโมเดลควร implement จาก environment ที่ยืนยันแล้ว ไม่ควรเดา
+
+## Colab Quick Start
+
+เปิด [FreshCheck_Colab_Runner.ipynb](FreshCheck_Colab_Runner.ipynb) บน Colab แล้วรันตามลำดับ cell:
+
+```bash
+1) Clone / Update repository from GitHub
+2) Mount Google Drive and define project paths
+3) Install dependencies
+4) Prepare group-aware Kaggle train/val splits
+5) Train classifiers
+6) Evaluate checkpoints
+7) Predict on one image or one folder
+8) Prepare CVAT masks for Phase 2 foundation
+```
+
+ถ้าจะรันผ่าน shell ใน Colab ตรง ๆ:
+
+```bash
+!git clone https://github.com/techasit239/DADS7202_PigPicture.git
+%cd DADS7202_PigPicture
+!pip install -r requirements.txt
+!python run_freshcheck.py --help
+```
 
 ### 1. Google Colab + T4 GPU
 

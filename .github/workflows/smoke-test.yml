@@ -1,0 +1,38 @@
+name: Smoke Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  cli-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify package compiles
+        run: |
+          python -m compileall freshcheck run_freshcheck.py
+
+      - name: Verify CLI help
+        run: |
+          python run_freshcheck.py --help
+          python run_freshcheck.py train --help
+          python run_freshcheck.py evaluate --help
+          python run_freshcheck.py predict --help
+          python run_freshcheck.py prepare-cvat --help
