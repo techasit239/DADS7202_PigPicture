@@ -184,20 +184,25 @@ def predict(model, loader, device):
 
 
 def save_metrics_json(path: str | Path, model_name: str, metrics: dict, extra: dict | None = None) -> None:
+    report = metrics.get("report", {})
+    confusion_matrix = metrics.get("confusion_matrix")
+    if confusion_matrix is None:
+        confusion_matrix = [[0 for _ in CLASS_NAMES] for _ in CLASS_NAMES]
+
     payload = {
         "model": model_name,
         "results": {
-            "accuracy": float(metrics["accuracy"]),
-            "macro_precision": float(metrics["macro_precision"]),
-            "macro_recall": float(metrics["macro_recall"]),
-            "macro_f1": float(metrics["macro_f1"]),
-            "loss": float(metrics["loss"]),
+            "accuracy": float(metrics.get("accuracy", 0.0)),
+            "macro_precision": float(metrics.get("macro_precision", 0.0)),
+            "macro_recall": float(metrics.get("macro_recall", 0.0)),
+            "macro_f1": float(metrics.get("macro_f1", 0.0)),
+            "loss": float(metrics.get("loss", 0.0)),
         },
         "confusion_matrix": {
             "labels": CLASS_NAMES,
-            "matrix": metrics["confusion_matrix"],
+            "matrix": confusion_matrix,
         },
-        "classification_report": metrics["report"],
+        "classification_report": report,
     }
     if extra:
         payload["extra"] = extra
