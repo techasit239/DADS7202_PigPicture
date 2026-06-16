@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
@@ -88,15 +89,19 @@ def evaluate(model, loader, criterion, device, desc="eval"):
         all_labels.extend(labels.cpu().numpy().tolist())
 
     macro_f1 = f1_score(all_labels, all_preds, average="macro")
+    report = classification_report(
+        all_labels, all_preds, target_names=CLASS_NAMES, output_dict=True, zero_division=0
+    )
     return {
         "loss": loss_sum / max(total, 1),
         "accuracy": correct / max(total, 1),
         "macro_f1": macro_f1,
         "preds": all_preds,
         "labels": all_labels,
-        "report": classification_report(
-            all_labels, all_preds, target_names=CLASS_NAMES, output_dict=True, zero_division=0
-        ),
+        "macro_precision": float(report["macro avg"]["precision"]),
+        "macro_recall": float(report["macro avg"]["recall"]),
+        "report": report,
+        "confusion_matrix": confusion_matrix(all_labels, all_preds, labels=list(range(len(CLASS_NAMES)))).tolist(),
     }
 
 
@@ -180,14 +185,50 @@ def save_metrics_json(path: str | Path, model_name: str, metrics: dict, extra: d
         "model": model_name,
         "results": {
             "accuracy": float(metrics["accuracy"]),
+            "macro_precision": float(metrics["macro_precision"]),
+            "macro_recall": float(metrics["macro_recall"]),
             "macro_f1": float(metrics["macro_f1"]),
             "loss": float(metrics["loss"]),
+        },
+        "confusion_matrix": {
+            "labels": CLASS_NAMES,
+            "matrix": metrics["confusion_matrix"],
         },
         "classification_report": metrics["report"],
     }
     if extra:
         payload["extra"] = extra
     json_dump(payload, path)
+
+
+def save_confusion_matrix_artifacts(output_dir: str | Path, model_name: str, metrics: dict) -> dict[str, str]:
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    matrix = np.asarray(metrics["confusion_matrix"], dtype=int)
+    csv_path = out_dir / f"{model_name}_confusion_matrix.csv"
+    png_path = out_dir / f"{model_name}_confusion_matrix.png"
+
+    pd.DataFrame(matrix, index=CLASS_NAMES, columns=CLASS_NAMES).to_csv(csv_path)
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    image = ax.imshow(matrix, cmap="Blues")
+    ax.set_xticks(range(len(CLASS_NAMES)))
+    ax.set_yticks(range(len(CLASS_NAMES)))
+    ax.set_xticklabels(CLASS_NAMES, rotation=45, ha="right")
+    ax.set_yticklabels(CLASS_NAMES)
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("True")
+    ax.set_title(f"Confusion Matrix: {model_name}")
+    for i in range(matrix.shape[0]):
+        for j in range(matrix.shape[1]):
+            ax.text(j, i, str(matrix[i, j]), ha="center", va="center", color="black")
+    fig.colorbar(image, ax=ax)
+    fig.tight_layout()
+    fig.savefig(png_path, dpi=180)
+    plt.close(fig)
+
+    return {"csv": str(csv_path.resolve()), "png": str(png_path.resolve())}
 
 
 def save_prediction_csv(path: str | Path, rows: list[dict]) -> None:

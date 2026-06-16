@@ -21,7 +21,14 @@ from freshcheck.data import (
     prepare_phase2_manifest,
 )
 from freshcheck.models import build_model
-from freshcheck.trainer import evaluate, fit, predict, save_metrics_json, save_prediction_csv
+from freshcheck.trainer import (
+    evaluate,
+    fit,
+    predict,
+    save_confusion_matrix_artifacts,
+    save_metrics_json,
+    save_prediction_csv,
+)
 from freshcheck.utils import choose_device, ensure_dir, json_dump, set_seed
 
 
@@ -190,11 +197,19 @@ def command_evaluate(args) -> None:
         model = build_model(model_name, pretrained=False, dropout=args.dropout).to(device)
         model.load_state_dict(torch.load(checkpoint, map_location=device))
         metrics = evaluate(model, loader, criterion, device, desc=f"eval:{model_name}")
+        confusion_artifacts = save_confusion_matrix_artifacts(output_dir, model_name, metrics)
         metrics_path = output_dir / f"{model_name}_eval.json"
-        save_metrics_json(metrics_path, model_name, metrics, extra={"checkpoint": str(checkpoint.resolve())})
+        save_metrics_json(
+            metrics_path,
+            model_name,
+            metrics,
+            extra={"checkpoint": str(checkpoint.resolve()), "confusion_matrix_files": confusion_artifacts},
+        )
         print(
-            f"{model_name}: accuracy={metrics['accuracy']:.4f} macro_f1={metrics['macro_f1']:.4f} "
-            f"loss={metrics['loss']:.4f}"
+            f"{model_name}: accuracy={metrics['accuracy']:.4f} "
+            f"precision={metrics['macro_precision']:.4f} "
+            f"recall={metrics['macro_recall']:.4f} "
+            f"macro_f1={metrics['macro_f1']:.4f} loss={metrics['loss']:.4f}"
         )
 
 
