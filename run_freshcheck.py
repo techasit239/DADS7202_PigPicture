@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from freshcheck.config import LEGACY_CHECKPOINT_FILENAMES, MODEL_NAMES
+from freshcheck.config import BASELINE_MODEL_NAMES, LEGACY_CHECKPOINT_FILENAMES, MODEL_NAMES
 from freshcheck.data import (
     ClassificationDataset,
     PredictionDataset,
@@ -34,7 +34,7 @@ from freshcheck.utils import choose_device, ensure_dir, json_dump, set_seed
 
 def parse_models(raw_models: list[str]) -> list[str]:
     if raw_models == ["all"]:
-        return MODEL_NAMES[:]
+        return BASELINE_MODEL_NAMES[:]
     invalid = sorted(set(raw_models) - set(MODEL_NAMES))
     if invalid:
         raise ValueError(f"Unsupported models: {invalid}. Choose from {MODEL_NAMES} or all.")

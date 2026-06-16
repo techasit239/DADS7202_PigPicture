@@ -260,6 +260,35 @@ python run_freshcheck.py train \
   --epochs 15
 ```
 
+### Train One More Model: DINOv3-ViT-S/16
+
+Use `dinov3_vits16` only when you explicitly request it. `--models all` still runs only the baseline trio:
+`efficientnet_b0`, `swin_t`, and `convnext_tiny`.
+
+This classifier is implemented as a frozen DINOv3 backbone plus a trainable linear head for the 3 freshness classes.
+Before running it on Colab, make sure:
+- you already accepted access to `facebook/dinov3-vits16-pretrain-lvd1689m`
+- your Colab session is logged into Hugging Face with a valid read token
+
+```bash
+python run_freshcheck.py train \
+  --train-csv /content/drive/MyDrive/FreshCheck/artifacts/splits/kaggle_train.csv \
+  --val-csv /content/drive/MyDrive/FreshCheck/artifacts/splits/kaggle_val.csv \
+  --output-dir /content/drive/MyDrive/FreshCheck/artifacts/train \
+  --models dinov3_vits16 \
+  --epochs 15
+```
+
+After training, evaluate or predict with the explicit model name in the same way:
+
+```bash
+python run_freshcheck.py evaluate \
+  --csv /content/drive/MyDrive/FreshCheck/thai_test/thai_test_manifest.csv \
+  --checkpoint-dir /content/drive/MyDrive/FreshCheck/artifacts/train/checkpoints \
+  --output-dir /content/drive/MyDrive/FreshCheck/artifacts/eval_dinov3 \
+  --models dinov3_vits16
+```
+
 ## Colab Quick Start
 
 เปิด [FreshCheck_Colab_Runner.ipynb](FreshCheck_Colab_Runner.ipynb) บน Colab แล้วรันตามลำดับ cell:

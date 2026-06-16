@@ -37,7 +37,10 @@ def build_training_components(
     epochs: int,
 ):
     criterion = nn.CrossEntropyLoss(weight=make_class_weights(train_df, device))
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    trainable_params = [param for param in model.parameters() if param.requires_grad]
+    if not trainable_params:
+        raise ValueError("Model has no trainable parameters.")
+    optimizer = torch.optim.AdamW(trainable_params, lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
     return criterion, optimizer, scheduler
 
