@@ -24,6 +24,16 @@ THAI_FILENAME_PATTERN = re.compile(
     r"^(?P<date>\d{8})_(?P<time>\d{4})_(?P<class_code>FR|HF|SP)_(?P<source_code>PK|UP)_(?P<piece_id>P\d+)\.[A-Za-z0-9]+$"
 )
 THAI_TEST_CLASS_MAP = {"FR": "FRESH", "HF": "HALF_FRESH", "SP": "SPOILED"}
+FOLDER_LABEL_MAP = {
+    "FR": "FRESH",
+    "FRESH": "FRESH",
+    "HF": "HALF_FRESH",
+    "HALF_FRESH": "HALF_FRESH",
+    "HALF-FRESH": "HALF_FRESH",
+    "HALFFRESH": "HALF_FRESH",
+    "SP": "SPOILED",
+    "SPOILED": "SPOILED",
+}
 CVAT_LABEL_TO_CLASS = {
     "FRESH": ("FRESH", "FR"),
     "HALF_FRESH": ("HALF_FRESH", "HF"),
@@ -75,6 +85,34 @@ def prepare_kaggle_dataframe(data_dir: str | Path) -> pd.DataFrame:
     df = pd.DataFrame(records)
     if df.empty:
         raise ValueError(f"No usable images found under {data_dir}")
+    return df.reset_index(drop=True)
+
+
+def infer_class_from_parent_dirs(path: Path, root_dir: Path) -> str:
+    relative_parts = [part.upper() for part in path.relative_to(root_dir).parts[:-1]]
+    for part in reversed(relative_parts):
+        if part in FOLDER_LABEL_MAP:
+            return FOLDER_LABEL_MAP[part]
+    raise ValueError(f"Could not infer class from parent folders for {path}")
+
+
+def prepare_folder_manifest(data_dir: str | Path) -> pd.DataFrame:
+    """Build a labeled manifest from a folder tree like root/FR/*.jpg root/HF/*.jpg root/SP/*.jpg."""
+    root_dir = Path(data_dir)
+    records = []
+    for path in iter_image_paths(root_dir):
+        class_name = infer_class_from_parent_dirs(path, root_dir)
+        records.append(
+            {
+                "filename": path.name,
+                "path": str(path.resolve()),
+                "class": class_name,
+                "piece_id": extract_piece_id(path.name),
+            }
+        )
+    df = pd.DataFrame(records)
+    if df.empty:
+        raise ValueError(f"No labeled images found under {data_dir}")
     return df.reset_index(drop=True)
 
 

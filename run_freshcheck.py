@@ -16,6 +16,7 @@ from freshcheck.data import (
     group_split_dataframe,
     iter_image_paths,
     load_dataframe,
+    prepare_folder_manifest,
     prepare_kaggle_dataframe,
     prepare_phase2_manifest,
 )
@@ -107,6 +108,26 @@ def command_prepare_splits(args) -> None:
     json_dump(summary, out_dir / "split_summary.json")
     print(f"Saved train split: {train_path}")
     print(f"Saved val split:   {val_path}")
+
+
+def command_prepare_manifest(args) -> None:
+    set_seed(args.seed)
+    if args.layout == "folder-labels":
+        df = prepare_folder_manifest(args.data_dir)
+    else:
+        df = prepare_kaggle_dataframe(args.data_dir)
+
+    out_dir = ensure_dir(args.output_dir)
+    manifest_path = out_dir / args.filename
+    df.to_csv(manifest_path, index=False)
+    summary = {
+        "rows": len(df),
+        "classes": df["class"].value_counts().to_dict(),
+        "source_dir": str(Path(args.data_dir).resolve()),
+        "layout": args.layout,
+    }
+    json_dump(summary, out_dir / f"{Path(args.filename).stem}_summary.json")
+    print(f"Saved manifest: {manifest_path}")
 
 
 def command_train(args) -> None:
@@ -242,6 +263,22 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_splits.add_argument("--train-ratio", type=float, default=0.8)
     prepare_splits.add_argument("--seed", type=int, default=42)
     prepare_splits.set_defaults(func=command_prepare_splits)
+
+    prepare_manifest = subparsers.add_parser(
+        "prepare-manifest",
+        help="Create a labeled manifest CSV from a folder tree, e.g. root/FR, root/HF, root/SP",
+    )
+    prepare_manifest.add_argument("--data-dir", required=True)
+    prepare_manifest.add_argument("--output-dir", required=True)
+    prepare_manifest.add_argument(
+        "--layout",
+        choices=["folder-labels", "kaggle"],
+        default="folder-labels",
+        help="How class labels should be inferred",
+    )
+    prepare_manifest.add_argument("--filename", default="manifest.csv")
+    prepare_manifest.add_argument("--seed", type=int, default=42)
+    prepare_manifest.set_defaults(func=command_prepare_manifest)
 
     common_model_args = {
         "models": dict(nargs="+", default=["all"], help=f"Models to run: {MODEL_NAMES} or all"),
