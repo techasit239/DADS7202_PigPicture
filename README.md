@@ -211,6 +211,8 @@ python run_freshcheck.py prepare-cvat --thai-data-dir <thai_images_dir> --cvat-x
 
 `--models all` จะรัน `efficientnet_b0`, `swin_t`, และ `convnext_tiny` ต่อเนื่องให้ในคำสั่งเดียว
 
+`prepare-cvat` รองรับ `CVAT XML v1.1` ทั้งแบบ `polygon` และแบบ `<mask rle="...">`
+
 ข้อจำกัดตอนนี้:
 - Local CLI ครอบคลุม Phase 1 classifiers และ Phase 2 foundation (CVAT → masks/CSV)
 - Notebook ที่พึ่ง gated Hugging Face models (`SAM3`, `Florence-2`, `DINOv3`) ยังไม่ได้ย้ายเป็น local runner เพราะต้องใช้ access/token จริงก่อน
@@ -222,7 +224,8 @@ python run_freshcheck.py prepare-cvat --thai-data-dir <thai_images_dir> --cvat-x
 - `phase1_efficientnet_b0_best.pth`
 - `phase2_swin_t_best.pth`
 
-สามารถ evaluate หรือ predict ได้ทันทีโดยไม่ต้อง rename:
+สามารถ evaluate หรือ predict ได้ทันทีโดยไม่ต้อง rename และ `thai_test_manifest.csv`
+แบบเดิมที่มีคอลัมน์ `dest_path` + `class_code` ก็ใช้ได้ตรง ๆ:
 
 ```bash
 python run_freshcheck.py evaluate \
