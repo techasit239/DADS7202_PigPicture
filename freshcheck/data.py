@@ -131,6 +131,56 @@ def group_split_dataframe(
     return train_df, val_df
 
 
+def split_manifest_dataframe(
+    df: pd.DataFrame,
+    fit_ratio: float,
+    seed: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    required_columns = {"path", "class", "piece_id"}
+    missing = required_columns - set(df.columns)
+    if missing:
+        raise ValueError(f"Manifest dataframe is missing columns required for splitting: {sorted(missing)}")
+    return group_split_dataframe(df, train_ratio=fit_ratio, seed=seed)
+
+
+def rebalance_dataframe(
+    df: pd.DataFrame,
+    seed: int,
+    group_column: str = "piece_id",
+) -> pd.DataFrame:
+    if df.empty:
+        raise ValueError("Cannot rebalance an empty dataframe.")
+
+    rng = np.random.default_rng(seed)
+    grouped = {class_name: subset.reset_index(drop=True) for class_name, subset in df.groupby("class")}
+    max_rows = max(len(subset) for subset in grouped.values())
+    balanced_parts: list[pd.DataFrame] = []
+
+    for class_name in CLASS_NAMES:
+        subset = grouped.get(class_name)
+        if subset is None or subset.empty:
+            continue
+        balanced_parts.append(subset)
+        if len(subset) >= max_rows:
+            continue
+
+        groups = [group.reset_index(drop=True) for _, group in subset.groupby(group_column, dropna=False)]
+        if not groups:
+            continue
+        picked_groups: list[pd.DataFrame] = []
+        current_rows = len(subset)
+        while current_rows < max_rows:
+            group = groups[int(rng.integers(0, len(groups)))]
+            picked_groups.append(group.copy())
+            current_rows += len(group)
+        if picked_groups:
+            oversampled = pd.concat(picked_groups, ignore_index=True)
+            balanced_parts.append(oversampled)
+
+    balanced = pd.concat(balanced_parts, ignore_index=True)
+    return balanced.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+
+
 def build_train_transform(img_size: int) -> T.Compose:
     return T.Compose(
         [

@@ -17,8 +17,10 @@ from freshcheck.data import (
     iter_image_paths,
     load_dataframe,
     prepare_folder_manifest,
+    rebalance_dataframe,
     prepare_kaggle_dataframe,
     prepare_phase2_manifest,
+    split_manifest_dataframe,
 )
 from freshcheck.models import build_model
 from freshcheck.trainer import (
@@ -135,6 +137,127 @@ def command_prepare_manifest(args) -> None:
     }
     json_dump(summary, out_dir / f"{Path(args.filename).stem}_summary.json")
     print(f"Saved manifest: {manifest_path}")
+
+
+def command_split_manifest(args) -> None:
+    set_seed(args.seed)
+    df = load_dataframe(args.csv)
+    if "piece_id" not in df.columns:
+        df = df.copy()
+        df["piece_id"] = df["path"].map(lambda value: Path(value).stem.upper())
+    fit_df, holdout_df = split_manifest_dataframe(df, fit_ratio=args.fit_ratio, seed=args.seed)
+
+    out_dir = ensure_dir(args.output_dir)
+    fit_path = out_dir / args.fit_filename
+    holdout_path = out_dir / args.holdout_filename
+    fit_df.to_csv(fit_path, index=False)
+    holdout_df.to_csv(holdout_path, index=False)
+    json_dump(
+        {
+            "source_csv": str(Path(args.csv).resolve()),
+            "fit_rows": len(fit_df),
+            "holdout_rows": len(holdout_df),
+            "fit_classes": fit_df["class"].value_counts().to_dict(),
+            "holdout_classes": holdout_df["class"].value_counts().to_dict(),
+        },
+        out_dir / "split_manifest_summary.json",
+    )
+    print(f"Saved fit split:     {fit_path}")
+    print(f"Saved holdout split: {holdout_path}")
+
+
+def command_prepare_experiments(args) -> None:
+    set_seed(args.seed)
+    source_df = load_dataframe(args.source_csv)
+    target_df = load_dataframe(args.target_csv)
+
+    for name, df in [("source", source_df), ("target", target_df)]:
+        if "piece_id" not in df.columns:
+            df = df.copy()
+            df["piece_id"] = df["path"].map(lambda value: Path(value).stem.upper())
+        if name == "source":
+            source_df = df
+        else:
+            target_df = df
+
+    source_fit, source_holdout = split_manifest_dataframe(source_df, fit_ratio=args.source_fit_ratio, seed=args.seed)
+    source_train, source_val = split_manifest_dataframe(source_fit, fit_ratio=args.train_ratio_within_fit, seed=args.seed + 1)
+
+    target_fit, target_holdout = split_manifest_dataframe(target_df, fit_ratio=args.target_fit_ratio, seed=args.seed)
+    target_train, target_val = split_manifest_dataframe(target_fit, fit_ratio=args.train_ratio_within_fit, seed=args.seed + 2)
+
+    exp_a_train = source_train.reset_index(drop=True)
+    exp_a_val = source_val.reset_index(drop=True)
+
+    exp_b_train = pd.concat([source_train, target_train], ignore_index=True)
+    exp_b_val = pd.concat([source_val, target_val], ignore_index=True)
+
+    exp_c_train = rebalance_dataframe(exp_b_train, seed=args.seed + 3)
+    exp_c_val = exp_b_val.reset_index(drop=True)
+
+    out_dir = ensure_dir(args.output_dir)
+    manifests = {
+        "source_train": source_train,
+        "source_val": source_val,
+        "source_holdout": source_holdout,
+        "target_train": target_train,
+        "target_val": target_val,
+        "target_holdout": target_holdout,
+        "exp_a_train": exp_a_train,
+        "exp_a_val": exp_a_val,
+        "exp_b_train": exp_b_train,
+        "exp_b_val": exp_b_val,
+        "exp_c_train_rebalanced": exp_c_train,
+        "exp_c_val": exp_c_val,
+    }
+    for name, df in manifests.items():
+        df.to_csv(out_dir / f"{name}.csv", index=False)
+
+    json_dump(
+        {
+            "experiment_design": {
+                "A": {
+                    "train_csv": "exp_a_train.csv",
+                    "val_csv": "exp_a_val.csv",
+                    "target_test_csv": "target_holdout.csv",
+                    "source_test_csv": "source_holdout.csv",
+                },
+                "B": {
+                    "train_csv": "exp_b_train.csv",
+                    "val_csv": "exp_b_val.csv",
+                    "target_test_csv": "target_holdout.csv",
+                },
+                "C": {
+                    "train_csv": "exp_c_train_rebalanced.csv",
+                    "val_csv": "exp_c_val.csv",
+                    "target_test_csv": "target_holdout.csv",
+                    "notes": "Rebalanced mixed train set for target adaptation",
+                },
+                "D": {
+                    "model_from": "Experiment C",
+                    "source_test_csv": "source_holdout.csv",
+                    "compare_against": "Experiment A",
+                },
+            },
+            "source": {
+                "rows": len(source_df),
+                "classes": source_df["class"].value_counts().to_dict(),
+                "fit_rows": len(source_fit),
+                "holdout_rows": len(source_holdout),
+            },
+            "target": {
+                "rows": len(target_df),
+                "classes": target_df["class"].value_counts().to_dict(),
+                "fit_rows": len(target_fit),
+                "holdout_rows": len(target_holdout),
+            },
+            "generated_files": sorted([f"{name}.csv" for name in manifests]),
+        },
+        out_dir / "experiment_plan.json",
+    )
+    print(f"Saved experiment manifests under: {out_dir}")
+    print(f"A target test: {out_dir / 'target_holdout.csv'}")
+    print(f"D source test: {out_dir / 'source_holdout.csv'}")
 
 
 def command_train(args) -> None:
@@ -294,6 +417,31 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_manifest.add_argument("--filename", default="manifest.csv")
     prepare_manifest.add_argument("--seed", type=int, default=42)
     prepare_manifest.set_defaults(func=command_prepare_manifest)
+
+    split_manifest = subparsers.add_parser(
+        "split-manifest",
+        help="Create a group-aware fit/holdout split from an existing labeled manifest CSV",
+    )
+    split_manifest.add_argument("--csv", required=True)
+    split_manifest.add_argument("--output-dir", required=True)
+    split_manifest.add_argument("--fit-ratio", type=float, default=0.8)
+    split_manifest.add_argument("--fit-filename", default="fit.csv")
+    split_manifest.add_argument("--holdout-filename", default="holdout.csv")
+    split_manifest.add_argument("--seed", type=int, default=42)
+    split_manifest.set_defaults(func=command_split_manifest)
+
+    prepare_experiments = subparsers.add_parser(
+        "prepare-experiments",
+        help="Build train/val/test CSVs for Experiments A/B/C/D using source and target manifests",
+    )
+    prepare_experiments.add_argument("--source-csv", required=True)
+    prepare_experiments.add_argument("--target-csv", required=True)
+    prepare_experiments.add_argument("--output-dir", required=True)
+    prepare_experiments.add_argument("--source-fit-ratio", type=float, default=0.8)
+    prepare_experiments.add_argument("--target-fit-ratio", type=float, default=0.7)
+    prepare_experiments.add_argument("--train-ratio-within-fit", type=float, default=0.8)
+    prepare_experiments.add_argument("--seed", type=int, default=42)
+    prepare_experiments.set_defaults(func=command_prepare_experiments)
 
     common_model_args = {
         "models": dict(nargs="+", default=["all"], help=f"Models to run: {MODEL_NAMES} or all"),
