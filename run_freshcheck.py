@@ -13,6 +13,7 @@ from freshcheck.data import (
     PredictionDataset,
     build_eval_transform,
     build_train_transform,
+    crop_images_from_masks,
     group_split_dataframe,
     iter_image_paths,
     load_dataframe,
@@ -391,6 +392,33 @@ def command_prepare_cvat(args) -> None:
     print(f"Saved masks:    {gt_masks_dir}")
 
 
+def command_crop_from_masks(args) -> None:
+    phase2_df = pd.read_csv(args.csv)
+    crop_df, crops_dir = crop_images_from_masks(
+        phase2_df,
+        output_dir=args.output_dir,
+        margin_ratio=args.margin_ratio,
+        min_pixels=args.min_pixels,
+    )
+    out_dir = ensure_dir(args.output_dir)
+    csv_path = out_dir / args.filename
+    crop_df.to_csv(csv_path, index=False)
+    json_dump(
+        {
+            "source_csv": str(Path(args.csv).resolve()),
+            "rows": len(crop_df),
+            "classes": crop_df["class"].value_counts().to_dict(),
+            "crops_dir": str(crops_dir.resolve()),
+            "margin_ratio": args.margin_ratio,
+            "min_pixels": args.min_pixels,
+            "skipped_empty_masks": int(crop_df.attrs.get("skipped_empty_masks", 0)),
+        },
+        out_dir / f"{Path(args.filename).stem}_summary.json",
+    )
+    print(f"Saved crop manifest: {csv_path}")
+    print(f"Saved crop images:   {crops_dir}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="FreshCheck local runner")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -497,6 +525,17 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_cvat.add_argument("--cvat-xml-path", required=True)
     prepare_cvat.add_argument("--output-dir", required=True)
     prepare_cvat.set_defaults(func=command_prepare_cvat)
+
+    crop_from_masks = subparsers.add_parser(
+        "crop-from-masks",
+        help="Create cropped classification images from a phase2 CVAT manifest CSV",
+    )
+    crop_from_masks.add_argument("--csv", required=True, help="Phase2 manifest CSV from prepare-cvat")
+    crop_from_masks.add_argument("--output-dir", required=True)
+    crop_from_masks.add_argument("--filename", default="crop_manifest.csv")
+    crop_from_masks.add_argument("--margin-ratio", type=float, default=0.08)
+    crop_from_masks.add_argument("--min-pixels", type=int, default=25)
+    crop_from_masks.set_defaults(func=command_crop_from_masks)
 
     return parser
 

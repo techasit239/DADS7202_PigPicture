@@ -437,6 +437,85 @@ def prepare_phase2_manifest(
     return df, gt_masks_dir
 
 
+def crop_images_from_masks(
+    phase2_df: pd.DataFrame,
+    output_dir: str | Path,
+    margin_ratio: float = 0.08,
+    min_pixels: int = 25,
+) -> tuple[pd.DataFrame, Path]:
+    required = {"image_path", "mask_path", "class", "piece_id"}
+    missing = required - set(phase2_df.columns)
+    if missing:
+        raise ValueError(f"Phase2 dataframe is missing required columns for cropping: {sorted(missing)}")
+
+    output_dir = Path(output_dir)
+    crops_dir = output_dir / "crops"
+    crops_dir.mkdir(parents=True, exist_ok=True)
+
+    records: list[dict] = []
+    skipped_empty = 0
+    for row in phase2_df.to_dict(orient="records"):
+        image_path = Path(row["image_path"])
+        mask_path = Path(row["mask_path"])
+        if not image_path.exists() or not mask_path.exists():
+            continue
+
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
+        image_np = np.asarray(image)
+        mask_np = np.asarray(mask) > 0
+        if int(mask_np.sum()) < min_pixels:
+            skipped_empty += 1
+            continue
+
+        ys, xs = np.where(mask_np)
+        top = int(ys.min())
+        bottom = int(ys.max()) + 1
+        left = int(xs.min())
+        right = int(xs.max()) + 1
+
+        height = bottom - top
+        width = right - left
+        y_margin = max(1, int(round(height * margin_ratio)))
+        x_margin = max(1, int(round(width * margin_ratio)))
+
+        top = max(0, top - y_margin)
+        bottom = min(image_np.shape[0], bottom + y_margin)
+        left = max(0, left - x_margin)
+        right = min(image_np.shape[1], right + x_margin)
+
+        cropped_image = image.crop((left, top, right, bottom))
+        crop_name = f"{image_path.stem}_crop{image_path.suffix.lower()}"
+        class_dir = crops_dir / str(row["class"]).upper()
+        class_dir.mkdir(parents=True, exist_ok=True)
+        crop_path = class_dir / crop_name
+        cropped_image.save(crop_path)
+
+        records.append(
+            {
+                "filename": crop_path.name,
+                "path": str(crop_path.resolve()),
+                "class": row["class"],
+                "piece_id": row["piece_id"],
+                "source": row.get("source", "Unknown"),
+                "source_code": row.get("source_code", "UN"),
+                "class_code": row.get("class_code", ""),
+                "original_image_path": str(image_path.resolve()),
+                "mask_path": str(mask_path.resolve()),
+                "crop_left": left,
+                "crop_top": top,
+                "crop_right": right,
+                "crop_bottom": bottom,
+            }
+        )
+
+    crop_df = pd.DataFrame(records)
+    if crop_df.empty:
+        raise ValueError("No cropped images were created; check mask coverage and image paths.")
+    crop_df.attrs["skipped_empty_masks"] = skipped_empty
+    return crop_df.reset_index(drop=True), crops_dir
+
+
 def load_dataframe(csv_path: str | Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     if {"path", "class"}.issubset(df.columns):
