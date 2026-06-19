@@ -364,7 +364,7 @@ def parse_thai_filename(filename: str) -> dict[str, str]:
         )
     class_code = match.group("class_code")
     source_code = match.group("source_code")
-    class_map = {"FR": "Fresh", "HF": "Half-Fresh", "SP": "Spoiled"}
+    class_map = {"FR": "FRESH", "HF": "HALF_FRESH", "SP": "SPOILED"}
     source_map = {"PK": "Packaged", "UP": "Unpackaged"}
     return {
         "class_code": class_code,
@@ -382,7 +382,7 @@ def parse_label_to_metadata(label_name: str, fallback_filename: str) -> dict[str
     class_name, class_code = CVAT_LABEL_TO_CLASS[normalized]
     return {
         "class_code": class_code,
-        "class": class_name.title().replace("_", "-") if class_name != "FRESH" else "Fresh",
+        "class": class_name,
         "source_code": "UN",
         "source": "Unknown",
         "piece_id": extract_piece_id(fallback_filename),
@@ -532,6 +532,14 @@ def load_dataframe(csv_path: str | Path) -> pd.DataFrame:
     missing = {"path", "class"} - set(normalized.columns)
     if missing:
         raise ValueError(f"{csv_path} is missing normalized columns: {sorted(missing)}")
+    normalized["class"] = (
+        normalized["class"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .str.replace("-", "_", regex=False)
+        .str.replace(" ", "_", regex=False)
+    )
     invalid = set(normalized["class"].dropna().unique()) - set(CLASS_NAMES)
     if invalid:
         raise ValueError(f"{csv_path} contains unsupported classes: {sorted(invalid)}")
