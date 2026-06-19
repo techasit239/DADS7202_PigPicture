@@ -399,13 +399,22 @@ def prepare_phase2_manifest(
     gt_masks_dir = output_dir / "gt_masks"
     gt_masks_dir.mkdir(parents=True, exist_ok=True)
 
+    image_lookup: dict[str, Path] = {}
+    duplicate_names: set[str] = set()
+    for candidate in iter_image_paths(thai_data_dir):
+        key = candidate.name
+        if key in image_lookup:
+            duplicate_names.add(key)
+        else:
+            image_lookup[key] = candidate
+
     parsed = parse_cvat_xml(cvat_xml_path)
     records = []
     for item in parsed:
         if not item.polygons and not item.raster_masks:
             continue
-        image_path = thai_data_dir / item.filename
-        if not image_path.exists():
+        image_path = image_lookup.get(item.filename)
+        if image_path is None or item.filename in duplicate_names:
             continue
         try:
             metadata = parse_thai_filename(item.filename)
