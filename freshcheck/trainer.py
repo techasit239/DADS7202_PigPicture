@@ -91,9 +91,15 @@ def evaluate(model, loader, criterion, device, desc="eval"):
         all_preds.extend(preds.cpu().numpy().tolist())
         all_labels.extend(labels.cpu().numpy().tolist())
 
-    macro_f1 = f1_score(all_labels, all_preds, average="macro")
+    label_ids = list(range(len(CLASS_NAMES)))
+    macro_f1 = f1_score(all_labels, all_preds, labels=label_ids, average="macro", zero_division=0)
     report = classification_report(
-        all_labels, all_preds, target_names=CLASS_NAMES, output_dict=True, zero_division=0
+        all_labels,
+        all_preds,
+        labels=label_ids,
+        target_names=CLASS_NAMES,
+        output_dict=True,
+        zero_division=0,
     )
     return {
         "loss": loss_sum / max(total, 1),
@@ -104,7 +110,7 @@ def evaluate(model, loader, criterion, device, desc="eval"):
         "macro_precision": float(report["macro avg"]["precision"]),
         "macro_recall": float(report["macro avg"]["recall"]),
         "report": report,
-        "confusion_matrix": confusion_matrix(all_labels, all_preds, labels=list(range(len(CLASS_NAMES)))).tolist(),
+        "confusion_matrix": confusion_matrix(all_labels, all_preds, labels=label_ids).tolist(),
     }
 
 

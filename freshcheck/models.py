@@ -36,6 +36,34 @@ class DINOv3LinearProbe(nn.Module):
         pooled = outputs.pooler_output
         return self.head(pooled)
 
+
+class DINOv2LinearProbe(nn.Module):
+    """Frozen DINOv2 backbone with a trainable linear classification head."""
+
+    def __init__(self, backbone: nn.Module, hidden_size: int, num_classes: int, dropout: float) -> None:
+        super().__init__()
+        self.backbone = backbone
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+        self.head = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Linear(hidden_size, num_classes),
+        )
+
+    def forward(self, pixel_values):
+        features = self.backbone(pixel_values)
+        if isinstance(features, dict):
+            features = features.get("x_norm_clstoken", next(iter(features.values())))
+        return self.head(features)
+
+
+def build_dinov2_model(num_classes: int = 3, dropout: float = 0.3):
+    backbone_name = "dinov2_vits14"
+    backbone = torch.hub.load("facebookresearch/dinov2", backbone_name)
+    hidden_size = int(getattr(backbone, "embed_dim"))
+    return DINOv2LinearProbe(backbone=backbone, hidden_size=hidden_size, num_classes=num_classes, dropout=dropout)
+
+
 def build_dinov3_model(num_classes: int = 3, dropout: float = 0.3):
     try:
         from transformers import AutoModel
@@ -53,6 +81,8 @@ def build_dinov3_model(num_classes: int = 3, dropout: float = 0.3):
 def build_model(model_name: str, num_classes: int = 3, dropout: float = 0.3, pretrained: bool = True):
     if model_name not in MODEL_NAMES:
         raise ValueError(f"Unsupported model: {model_name}. Expected one of {MODEL_NAMES}")
+    if model_name == "dinov2_vits14":
+        return build_dinov2_model(num_classes=num_classes, dropout=dropout)
     if model_name == "dinov3_vits16":
         return build_dinov3_model(num_classes=num_classes, dropout=dropout)
 
