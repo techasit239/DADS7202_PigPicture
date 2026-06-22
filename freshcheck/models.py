@@ -125,3 +125,40 @@ def build_model(model_name: str, num_classes: int = 3, dropout: float = 0.3, pre
         nn.Linear(in_features, num_classes),
     )
     return model
+
+
+def get_backbone_module(model_name: str, model: nn.Module) -> nn.Module:
+    if model_name == "efficientnet_b0":
+        return model.features
+    if model_name == "swin_t":
+        return model.features
+    if model_name == "convnext_tiny":
+        return model.features
+    if model_name in {"dinov2_vits14", "dinov3_vits16"}:
+        return model.backbone
+    raise ValueError(f"Unsupported model for backbone selection: {model_name}")
+
+
+def get_head_module(model_name: str, model: nn.Module) -> nn.Module:
+    if model_name == "efficientnet_b0":
+        return model.classifier
+    if model_name == "swin_t":
+        return model.head
+    if model_name == "convnext_tiny":
+        return model.classifier
+    if model_name in {"dinov2_vits14", "dinov3_vits16"}:
+        return model.head
+    raise ValueError(f"Unsupported model for head selection: {model_name}")
+
+
+def set_backbone_trainable(model_name: str, model: nn.Module, trainable: bool) -> None:
+    backbone = get_backbone_module(model_name, model)
+    head = get_head_module(model_name, model)
+    for param in backbone.parameters():
+        param.requires_grad = trainable
+    for param in head.parameters():
+        param.requires_grad = True
+
+
+def supports_backbone_finetune(model_name: str) -> bool:
+    return model_name in {"efficientnet_b0", "swin_t", "convnext_tiny"}

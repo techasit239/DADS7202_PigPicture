@@ -10,10 +10,10 @@ import pandas as pd
 METRIC_KEYS = ["accuracy", "macro_precision", "macro_recall", "macro_f1", "loss"]
 
 
-def load_eval_rows(root_dir: Path, model_name: str) -> list[dict]:
+def load_eval_rows(root_dir: Path, model_name: str, eval_subdir: str | None = None) -> list[dict]:
     rows: list[dict] = []
     for seed_dir in sorted(path for path in root_dir.iterdir() if path.is_dir()):
-        eval_path = seed_dir / f"{model_name}_eval.json"
+        eval_path = seed_dir / eval_subdir / f"{model_name}_eval.json" if eval_subdir else seed_dir / f"{model_name}_eval.json"
         if not eval_path.exists():
             continue
         payload = json.loads(eval_path.read_text(encoding="utf-8"))
@@ -60,13 +60,18 @@ def main() -> None:
         required=True,
         help="Directory to save summary CSV and JSON files.",
     )
+    parser.add_argument(
+        "--eval-subdir",
+        default="",
+        help="Optional subdirectory under each seed folder where the eval JSON lives, e.g. eval_target",
+    )
     args = parser.parse_args()
 
     root_dir = Path(args.root_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    rows = load_eval_rows(root_dir, args.model)
+    rows = load_eval_rows(root_dir, args.model, eval_subdir=args.eval_subdir or None)
     summary = summarize_rows(rows)
 
     runs_df = pd.DataFrame(summary["runs"])

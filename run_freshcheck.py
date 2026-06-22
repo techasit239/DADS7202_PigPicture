@@ -26,6 +26,7 @@ from freshcheck.data import (
     split_manifest_dataframe,
 )
 from freshcheck.models import build_model
+from freshcheck.models import supports_backbone_finetune
 from freshcheck.trainer import (
     evaluate,
     fit,
@@ -34,7 +35,7 @@ from freshcheck.trainer import (
     save_metrics_json,
     save_prediction_csv,
 )
-from freshcheck.utils import choose_device, ensure_dir, json_dump, set_seed
+from freshcheck.utils import choose_device, configure_torch_runtime, ensure_dir, json_dump, set_seed
 
 
 def parse_models(raw_models: list[str]) -> list[str]:
@@ -99,6 +100,8 @@ def make_loader(
     crop_scale_max: float = 1.0,
     patch_sampling: bool = False,
     num_patches: int = 1,
+    persistent_workers: bool = False,
+    prefetch_factor: int = 2,
 ):
     if patch_sampling:
         transform = (
@@ -124,17 +127,24 @@ def make_loader(
         patch_size=img_size,
         train=train,
     )
-    return DataLoader(
-        dataset,
+    loader_kwargs = dict(
         batch_size=batch_size,
         shuffle=train,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=bool(persistent_workers and num_workers > 0),
+    )
+    if num_workers > 0:
+        loader_kwargs["prefetch_factor"] = prefetch_factor
+    return DataLoader(
+        dataset,
+        **loader_kwargs,
     )
 
 
 def command_prepare_splits(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     df = prepare_kaggle_dataframe(args.data_dir)
     train_df, val_df = group_split_dataframe(df, train_ratio=args.train_ratio, seed=args.seed)
     out_dir = ensure_dir(args.output_dir)
@@ -155,7 +165,8 @@ def command_prepare_splits(args) -> None:
 
 
 def command_prepare_manifest(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     if args.layout == "folder-labels":
         df = prepare_folder_manifest(args.data_dir)
     else:
@@ -175,7 +186,8 @@ def command_prepare_manifest(args) -> None:
 
 
 def command_split_manifest(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     df = load_dataframe(args.csv)
     if "piece_id" not in df.columns:
         df = df.copy()
@@ -202,7 +214,8 @@ def command_split_manifest(args) -> None:
 
 
 def command_prepare_experiments(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     source_df = load_dataframe(args.source_csv)
     target_df = load_dataframe(args.target_csv)
 
@@ -296,7 +309,8 @@ def command_prepare_experiments(args) -> None:
 
 
 def command_train(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     device = choose_device(args.device)
     models = parse_models(args.models)
     train_df = load_dataframe(args.train_csv)
@@ -312,6 +326,8 @@ def command_train(args) -> None:
         crop_scale_max=args.crop_scale_max,
         patch_sampling=args.patch_sampling,
         num_patches=args.num_patches,
+        persistent_workers=args.persistent_workers,
+        prefetch_factor=args.prefetch_factor,
     )
     val_loader = make_loader(
         val_df,
@@ -321,6 +337,8 @@ def command_train(args) -> None:
         train=False,
         patch_sampling=args.patch_sampling,
         num_patches=args.num_patches,
+        persistent_workers=args.persistent_workers,
+        prefetch_factor=args.prefetch_factor,
     )
 
     output_dir = ensure_dir(args.output_dir)
@@ -330,9 +348,11 @@ def command_train(args) -> None:
     for model_name in models:
         print(f"\n=== Training {model_name} on {device} ===")
         model = build_model(model_name, pretrained=args.pretrained, dropout=args.dropout).to(device)
+        freeze_backbone_epochs = args.freeze_backbone_epochs if supports_backbone_finetune(model_name) else 0
         checkpoint_path = checkpoint_dir / f"{model_name}_best.pt"
         history, train_summary = fit(
             model=model,
+            model_name=model_name,
             train_loader=train_loader,
             val_loader=val_loader,
             train_df=train_df,
@@ -342,6 +362,9 @@ def command_train(args) -> None:
             lr=args.lr,
             weight_decay=args.weight_decay,
             checkpoint_path=checkpoint_path,
+            freeze_backbone_epochs=freeze_backbone_epochs,
+            amp=args.amp,
+            amp_dtype=args.amp_dtype,
         )
         history_path = metrics_dir / f"{model_name}_history.csv"
         pd.DataFrame(history).to_csv(history_path, index=False)
@@ -353,13 +376,19 @@ def command_train(args) -> None:
                 "best_epoch": train_summary["best_epoch"],
                 "checkpoint_path": train_summary["checkpoint_path"],
                 "history_csv": str(history_path.resolve()),
+                "freeze_backbone_epochs": freeze_backbone_epochs,
+                "patch_sampling": bool(args.patch_sampling),
+                "num_patches": int(args.num_patches),
+                "amp": bool(args.amp),
+                "amp_dtype": args.amp_dtype,
             },
         )
         print(f"Best checkpoint: {checkpoint_path}")
 
 
 def command_evaluate(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     device = choose_device(args.device)
     models = parse_models(args.models)
     eval_df = load_dataframe(args.csv)
@@ -371,6 +400,8 @@ def command_evaluate(args) -> None:
         train=False,
         patch_sampling=args.patch_sampling,
         num_patches=args.num_patches,
+        persistent_workers=args.persistent_workers,
+        prefetch_factor=args.prefetch_factor,
     )
     output_dir = ensure_dir(args.output_dir)
     checkpoint_overrides = parse_checkpoint_overrides(args.checkpoint_paths)
@@ -380,7 +411,15 @@ def command_evaluate(args) -> None:
         checkpoint = resolve_checkpoint(model_name, args.checkpoint_dir, checkpoint_overrides)
         model = build_model(model_name, pretrained=False, dropout=args.dropout).to(device)
         model.load_state_dict(torch.load(checkpoint, map_location=device))
-        metrics = evaluate(model, loader, criterion, device, desc=f"eval:{model_name}")
+        metrics = evaluate(
+            model,
+            loader,
+            criterion,
+            device,
+            desc=f"eval:{model_name}",
+            amp=args.amp,
+            amp_dtype=args.amp_dtype,
+        )
         confusion_artifacts = save_confusion_matrix_artifacts(output_dir, model_name, metrics)
         metrics_path = output_dir / f"{model_name}_eval.json"
         save_metrics_json(
@@ -398,7 +437,8 @@ def command_evaluate(args) -> None:
 
 
 def command_predict(args) -> None:
-    set_seed(args.seed)
+    set_seed(args.seed, deterministic=args.deterministic)
+    configure_torch_runtime(deterministic=args.deterministic, allow_tf32=args.allow_tf32)
     device = choose_device(args.device)
     models = parse_models(args.models)
     image_root = Path(args.input_path)
@@ -409,6 +449,15 @@ def command_predict(args) -> None:
     if not image_paths:
         raise ValueError(f"No input images found under {args.input_path}")
 
+    loader_kwargs = dict(
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        persistent_workers=bool(args.persistent_workers and args.num_workers > 0),
+    )
+    if args.num_workers > 0:
+        loader_kwargs["prefetch_factor"] = args.prefetch_factor
     loader = DataLoader(
         PredictionDataset(
             image_paths,
@@ -417,10 +466,7 @@ def command_predict(args) -> None:
             num_patches=args.num_patches,
             patch_size=args.img_size,
         ),
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=True,
+        **loader_kwargs,
     )
     output_dir = ensure_dir(args.output_dir)
     checkpoint_overrides = parse_checkpoint_overrides(args.checkpoint_paths)
@@ -429,7 +475,7 @@ def command_predict(args) -> None:
         checkpoint = resolve_checkpoint(model_name, args.checkpoint_dir, checkpoint_overrides)
         model = build_model(model_name, pretrained=False, dropout=args.dropout).to(device)
         model.load_state_dict(torch.load(checkpoint, map_location=device))
-        rows = predict(model, loader, device)
+        rows = predict(model, loader, device, amp=args.amp, amp_dtype=args.amp_dtype)
         csv_path = output_dir / f"{model_name}_predictions.csv"
         save_prediction_csv(csv_path, rows)
         print(f"Saved predictions for {model_name}: {csv_path}")
@@ -494,6 +540,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_splits.add_argument("--output-dir", required=True)
     prepare_splits.add_argument("--train-ratio", type=float, default=0.8)
     prepare_splits.add_argument("--seed", type=int, default=42)
+    prepare_splits.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    prepare_splits.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     prepare_splits.set_defaults(func=command_prepare_splits)
 
     prepare_manifest = subparsers.add_parser(
@@ -510,6 +558,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     prepare_manifest.add_argument("--filename", default="manifest.csv")
     prepare_manifest.add_argument("--seed", type=int, default=42)
+    prepare_manifest.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    prepare_manifest.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     prepare_manifest.set_defaults(func=command_prepare_manifest)
 
     split_manifest = subparsers.add_parser(
@@ -522,6 +572,8 @@ def build_parser() -> argparse.ArgumentParser:
     split_manifest.add_argument("--fit-filename", default="fit.csv")
     split_manifest.add_argument("--holdout-filename", default="holdout.csv")
     split_manifest.add_argument("--seed", type=int, default=42)
+    split_manifest.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    split_manifest.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     split_manifest.set_defaults(func=command_split_manifest)
 
     prepare_experiments = subparsers.add_parser(
@@ -535,6 +587,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_experiments.add_argument("--target-fit-ratio", type=float, default=0.7)
     prepare_experiments.add_argument("--train-ratio-within-fit", type=float, default=0.8)
     prepare_experiments.add_argument("--seed", type=int, default=42)
+    prepare_experiments.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    prepare_experiments.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     prepare_experiments.set_defaults(func=command_prepare_experiments)
 
     common_model_args = {
@@ -547,6 +601,7 @@ def build_parser() -> argparse.ArgumentParser:
         "crop_scale_min": dict(type=float, default=0.8),
         "crop_scale_max": dict(type=float, default=1.0),
         "num_patches": dict(type=int, default=1),
+        "prefetch_factor": dict(type=int, default=2),
         "seed": dict(type=int, default=42),
     }
 
@@ -560,6 +615,12 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--weight-decay", type=float, default=1e-2)
     train.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     train.add_argument("--patch-sampling", action=argparse.BooleanOptionalAction, default=False)
+    train.add_argument("--freeze-backbone-epochs", type=int, default=0)
+    train.add_argument("--amp", action=argparse.BooleanOptionalAction, default=True)
+    train.add_argument("--amp-dtype", choices=["bf16", "fp16"], default="bf16")
+    train.add_argument("--persistent-workers", action=argparse.BooleanOptionalAction, default=True)
+    train.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    train.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     for key, kwargs in common_model_args.items():
         train.add_argument(f"--{key.replace('_', '-')}", **kwargs)
     train.set_defaults(func=command_train)
@@ -574,6 +635,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument("--output-dir", required=True)
     evaluate_parser.add_argument("--patch-sampling", action=argparse.BooleanOptionalAction, default=False)
+    evaluate_parser.add_argument("--amp", action=argparse.BooleanOptionalAction, default=True)
+    evaluate_parser.add_argument("--amp-dtype", choices=["bf16", "fp16"], default="bf16")
+    evaluate_parser.add_argument("--persistent-workers", action=argparse.BooleanOptionalAction, default=True)
+    evaluate_parser.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    evaluate_parser.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     for key, kwargs in common_model_args.items():
         evaluate_parser.add_argument(f"--{key.replace('_', '-')}", **kwargs)
     evaluate_parser.set_defaults(func=command_evaluate)
@@ -588,6 +654,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     predict_parser.add_argument("--output-dir", required=True)
     predict_parser.add_argument("--patch-sampling", action=argparse.BooleanOptionalAction, default=False)
+    predict_parser.add_argument("--amp", action=argparse.BooleanOptionalAction, default=True)
+    predict_parser.add_argument("--amp-dtype", choices=["bf16", "fp16"], default="bf16")
+    predict_parser.add_argument("--persistent-workers", action=argparse.BooleanOptionalAction, default=True)
+    predict_parser.add_argument("--deterministic", action=argparse.BooleanOptionalAction, default=False)
+    predict_parser.add_argument("--allow-tf32", action=argparse.BooleanOptionalAction, default=True)
     for key, kwargs in common_model_args.items():
         predict_parser.add_argument(f"--{key.replace('_', '-')}", **kwargs)
     predict_parser.set_defaults(func=command_predict)
