@@ -181,11 +181,19 @@ def rebalance_dataframe(
     return balanced.sample(frac=1.0, random_state=seed).reset_index(drop=True)
 
 
-def build_train_transform(img_size: int) -> T.Compose:
+def build_train_transform(
+    img_size: int,
+    crop_scale_min: float = 0.8,
+    crop_scale_max: float = 1.0,
+) -> T.Compose:
+    if not 0 < crop_scale_min <= crop_scale_max <= 1.0:
+        raise ValueError(
+            "Crop scale must satisfy 0 < crop_scale_min <= crop_scale_max <= 1.0"
+        )
     return T.Compose(
         [
             T.Resize((256, 256)),
-            T.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+            T.RandomResizedCrop(img_size, scale=(crop_scale_min, crop_scale_max)),
             T.RandomHorizontalFlip(p=0.5),
             T.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
             T.ToTensor(),
@@ -205,12 +213,120 @@ def build_eval_transform(img_size: int) -> T.Compose:
     )
 
 
+def build_patch_train_transform(img_size: int) -> T.Compose:
+    return T.Compose(
+        [
+            T.Resize((img_size, img_size)),
+            T.RandomHorizontalFlip(p=0.5),
+            T.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.10, hue=0.02),
+            T.ToTensor(),
+            T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ]
+    )
+
+
+def build_patch_eval_transform(img_size: int) -> T.Compose:
+    return T.Compose(
+        [
+            T.Resize((img_size, img_size)),
+            T.ToTensor(),
+            T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ]
+    )
+
+
+def _ensure_min_size(image: Image.Image, min_size: int) -> Image.Image:
+    width, height = image.size
+    if min(width, height) >= min_size:
+        return image
+    scale = float(min_size) / float(min(width, height))
+    new_width = max(min_size, int(round(width * scale)))
+    new_height = max(min_size, int(round(height * scale)))
+    return image.resize((new_width, new_height), Image.BILINEAR)
+
+
+def _candidate_patch_positions(length: int, patch_size: int, count: int) -> list[int]:
+    if length <= patch_size:
+        return [0]
+    if count <= 1:
+        return [(length - patch_size) // 2]
+    max_offset = length - patch_size
+    return [int(round(idx * max_offset / (count - 1))) for idx in range(count)]
+
+
+def sample_patch_images(
+    image: Image.Image,
+    patch_size: int,
+    num_patches: int,
+    train: bool,
+) -> list[Image.Image]:
+    """Extract image patches for patch-based classification.
+
+    Train mode samples approximately non-overlapping random patches.
+    Eval mode uses a deterministic grid-like layout so repeated runs are stable.
+    """
+    image = _ensure_min_size(image, patch_size)
+    width, height = image.size
+    if num_patches <= 1:
+        left = max((width - patch_size) // 2, 0)
+        top = max((height - patch_size) // 2, 0)
+        return [image.crop((left, top, left + patch_size, top + patch_size))]
+
+    patches: list[Image.Image] = []
+    if train:
+        rng = np.random.default_rng()
+        attempts = 0
+        boxes: list[tuple[int, int, int, int]] = []
+        while len(boxes) < num_patches and attempts < num_patches * 20:
+            left = int(rng.integers(0, max(width - patch_size + 1, 1)))
+            top = int(rng.integers(0, max(height - patch_size + 1, 1)))
+            box = (left, top, left + patch_size, top + patch_size)
+            overlap = False
+            for other in boxes:
+                inter_w = max(0, min(box[2], other[2]) - max(box[0], other[0]))
+                inter_h = max(0, min(box[3], other[3]) - max(box[1], other[1]))
+                if inter_w * inter_h > 0:
+                    overlap = True
+                    break
+            if not overlap or len(boxes) == 0:
+                boxes.append(box)
+            attempts += 1
+        while len(boxes) < num_patches:
+            left = min((len(boxes) * patch_size) % max(width - patch_size + 1, 1), max(width - patch_size, 0))
+            top = min(((len(boxes) * patch_size) // max(width - patch_size + 1, 1)) * patch_size, max(height - patch_size, 0))
+            boxes.append((left, top, left + patch_size, top + patch_size))
+        return [image.crop(box) for box in boxes[:num_patches]]
+
+    grid_cols = int(np.ceil(np.sqrt(num_patches)))
+    grid_rows = int(np.ceil(num_patches / grid_cols))
+    xs = _candidate_patch_positions(width, patch_size, grid_cols)
+    ys = _candidate_patch_positions(height, patch_size, grid_rows)
+    for top in ys:
+        for left in xs:
+            patches.append(image.crop((left, top, left + patch_size, top + patch_size)))
+            if len(patches) >= num_patches:
+                return patches
+    return patches[:num_patches]
+
+
 class ClassificationDataset(Dataset):
     """Standard image classification dataset backed by a CSV dataframe."""
 
-    def __init__(self, df: pd.DataFrame, transform: T.Compose | None = None) -> None:
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        transform: T.Compose | None = None,
+        patch_sampling: bool = False,
+        num_patches: int = 1,
+        patch_size: int = 224,
+        train: bool = False,
+    ) -> None:
         self.df = df.reset_index(drop=True)
         self.transform = transform
+        self.patch_sampling = patch_sampling
+        self.num_patches = num_patches
+        self.patch_size = patch_size
+        self.train = train
 
     def __len__(self) -> int:
         return len(self.df)
@@ -218,8 +334,19 @@ class ClassificationDataset(Dataset):
     def __getitem__(self, index: int):
         row = self.df.iloc[index]
         image = Image.open(row["path"]).convert("RGB")
+        if self.patch_sampling:
+            patches = sample_patch_images(
+                image,
+                patch_size=self.patch_size,
+                num_patches=self.num_patches,
+                train=self.train,
+            )
+            if self.transform:
+                patches = [self.transform(patch) for patch in patches]
+            image = np.stack([patch.numpy() for patch in patches], axis=0)
         if self.transform:
-            image = self.transform(image)
+            if not self.patch_sampling:
+                image = self.transform(image)
         label = LABEL_MAP[row["class"]]
         return image, label
 
@@ -227,9 +354,19 @@ class ClassificationDataset(Dataset):
 class PredictionDataset(Dataset):
     """Dataset for unlabeled prediction on files or folders."""
 
-    def __init__(self, image_paths: list[Path], transform: T.Compose) -> None:
+    def __init__(
+        self,
+        image_paths: list[Path],
+        transform: T.Compose,
+        patch_sampling: bool = False,
+        num_patches: int = 1,
+        patch_size: int = 224,
+    ) -> None:
         self.image_paths = image_paths
         self.transform = transform
+        self.patch_sampling = patch_sampling
+        self.num_patches = num_patches
+        self.patch_size = patch_size
 
     def __len__(self) -> int:
         return len(self.image_paths)
@@ -237,6 +374,15 @@ class PredictionDataset(Dataset):
     def __getitem__(self, index: int):
         path = self.image_paths[index]
         image = Image.open(path).convert("RGB")
+        if self.patch_sampling:
+            patches = sample_patch_images(
+                image,
+                patch_size=self.patch_size,
+                num_patches=self.num_patches,
+                train=False,
+            )
+            stacked = np.stack([self.transform(patch).numpy() for patch in patches], axis=0)
+            return stacked, str(path.resolve())
         return self.transform(image), str(path.resolve())
 
 

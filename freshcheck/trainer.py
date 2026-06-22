@@ -55,7 +55,12 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch, total_ep
         images = images.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
         optimizer.zero_grad()
-        logits = model(images)
+        if images.ndim == 5:
+            batch_size, num_patches, channels, height, width = images.shape
+            patch_logits = model(images.view(batch_size * num_patches, channels, height, width))
+            logits = patch_logits.view(batch_size, num_patches, -1).mean(dim=1)
+        else:
+            logits = model(images)
         loss = criterion(logits, labels)
         loss.backward()
         optimizer.step()
@@ -80,7 +85,12 @@ def evaluate(model, loader, criterion, device, desc="eval"):
     for images, labels in tqdm(loader, desc=desc, leave=False):
         images = images.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
-        logits = model(images)
+        if images.ndim == 5:
+            batch_size, num_patches, channels, height, width = images.shape
+            patch_logits = model(images.view(batch_size * num_patches, channels, height, width))
+            logits = patch_logits.view(batch_size, num_patches, -1).mean(dim=1)
+        else:
+            logits = model(images)
         loss = criterion(logits, labels)
         preds = logits.argmax(1)
 
@@ -175,7 +185,13 @@ def predict(model, loader, device):
     rows = []
     for images, image_paths in tqdm(loader, desc="predict", leave=False):
         images = images.to(device, non_blocking=True)
-        probs = torch.softmax(model(images), dim=1).cpu().numpy()
+        if images.ndim == 5:
+            batch_size, num_patches, channels, height, width = images.shape
+            patch_logits = model(images.view(batch_size * num_patches, channels, height, width))
+            logits = patch_logits.view(batch_size, num_patches, -1).mean(dim=1)
+        else:
+            logits = model(images)
+        probs = torch.softmax(logits, dim=1).cpu().numpy()
         preds = probs.argmax(axis=1)
         for path, pred_idx, prob_row in zip(image_paths, preds, probs):
             record = {
