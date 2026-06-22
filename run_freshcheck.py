@@ -12,6 +12,8 @@ from freshcheck.data import (
     ClassificationDataset,
     PredictionDataset,
     build_eval_transform,
+    build_patch_eval_transform,
+    build_patch_train_transform,
     build_train_transform,
     crop_images_from_masks,
     group_split_dataframe,
@@ -87,9 +89,41 @@ def resolve_checkpoint(model_name: str, checkpoint_dir: str | None, overrides: d
     )
 
 
-def make_loader(df: pd.DataFrame, img_size: int, batch_size: int, num_workers: int, train: bool):
-    transform = build_train_transform(img_size) if train else build_eval_transform(img_size)
-    dataset = ClassificationDataset(df, transform=transform)
+def make_loader(
+    df: pd.DataFrame,
+    img_size: int,
+    batch_size: int,
+    num_workers: int,
+    train: bool,
+    crop_scale_min: float = 0.8,
+    crop_scale_max: float = 1.0,
+    patch_sampling: bool = False,
+    num_patches: int = 1,
+):
+    if patch_sampling:
+        transform = (
+            build_patch_train_transform(img_size)
+            if train
+            else build_patch_eval_transform(img_size)
+        )
+    else:
+        transform = (
+            build_train_transform(
+                img_size,
+                crop_scale_min=crop_scale_min,
+                crop_scale_max=crop_scale_max,
+            )
+            if train
+            else build_eval_transform(img_size)
+        )
+    dataset = ClassificationDataset(
+        df,
+        transform=transform,
+        patch_sampling=patch_sampling,
+        num_patches=num_patches,
+        patch_size=img_size,
+        train=train,
+    )
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -268,8 +302,26 @@ def command_train(args) -> None:
     train_df = load_dataframe(args.train_csv)
     val_df = load_dataframe(args.val_csv)
 
-    train_loader = make_loader(train_df, args.img_size, args.batch_size, args.num_workers, train=True)
-    val_loader = make_loader(val_df, args.img_size, args.batch_size, args.num_workers, train=False)
+    train_loader = make_loader(
+        train_df,
+        args.img_size,
+        args.batch_size,
+        args.num_workers,
+        train=True,
+        crop_scale_min=args.crop_scale_min,
+        crop_scale_max=args.crop_scale_max,
+        patch_sampling=args.patch_sampling,
+        num_patches=args.num_patches,
+    )
+    val_loader = make_loader(
+        val_df,
+        args.img_size,
+        args.batch_size,
+        args.num_workers,
+        train=False,
+        patch_sampling=args.patch_sampling,
+        num_patches=args.num_patches,
+    )
 
     output_dir = ensure_dir(args.output_dir)
     checkpoint_dir = ensure_dir(output_dir / "checkpoints")
@@ -311,7 +363,15 @@ def command_evaluate(args) -> None:
     device = choose_device(args.device)
     models = parse_models(args.models)
     eval_df = load_dataframe(args.csv)
-    loader = make_loader(eval_df, args.img_size, args.batch_size, args.num_workers, train=False)
+    loader = make_loader(
+        eval_df,
+        args.img_size,
+        args.batch_size,
+        args.num_workers,
+        train=False,
+        patch_sampling=args.patch_sampling,
+        num_patches=args.num_patches,
+    )
     output_dir = ensure_dir(args.output_dir)
     checkpoint_overrides = parse_checkpoint_overrides(args.checkpoint_paths)
 
@@ -350,7 +410,13 @@ def command_predict(args) -> None:
         raise ValueError(f"No input images found under {args.input_path}")
 
     loader = DataLoader(
-        PredictionDataset(image_paths, build_eval_transform(args.img_size)),
+        PredictionDataset(
+            image_paths,
+            build_patch_eval_transform(args.img_size) if args.patch_sampling else build_eval_transform(args.img_size),
+            patch_sampling=args.patch_sampling,
+            num_patches=args.num_patches,
+            patch_size=args.img_size,
+        ),
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
@@ -478,6 +544,9 @@ def build_parser() -> argparse.ArgumentParser:
         "num_workers": dict(type=int, default=0),
         "device": dict(default="auto"),
         "dropout": dict(type=float, default=0.3),
+        "crop_scale_min": dict(type=float, default=0.8),
+        "crop_scale_max": dict(type=float, default=1.0),
+        "num_patches": dict(type=int, default=1),
         "seed": dict(type=int, default=42),
     }
 
@@ -490,6 +559,7 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--lr", type=float, default=1e-4)
     train.add_argument("--weight-decay", type=float, default=1e-2)
     train.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
+    train.add_argument("--patch-sampling", action=argparse.BooleanOptionalAction, default=False)
     for key, kwargs in common_model_args.items():
         train.add_argument(f"--{key.replace('_', '-')}", **kwargs)
     train.set_defaults(func=command_train)
@@ -503,6 +573,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional overrides in the form model_name=/path/to/checkpoint.pth",
     )
     evaluate_parser.add_argument("--output-dir", required=True)
+    evaluate_parser.add_argument("--patch-sampling", action=argparse.BooleanOptionalAction, default=False)
     for key, kwargs in common_model_args.items():
         evaluate_parser.add_argument(f"--{key.replace('_', '-')}", **kwargs)
     evaluate_parser.set_defaults(func=command_evaluate)
@@ -516,6 +587,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional overrides in the form model_name=/path/to/checkpoint.pth",
     )
     predict_parser.add_argument("--output-dir", required=True)
+    predict_parser.add_argument("--patch-sampling", action=argparse.BooleanOptionalAction, default=False)
     for key, kwargs in common_model_args.items():
         predict_parser.add_argument(f"--{key.replace('_', '-')}", **kwargs)
     predict_parser.set_defaults(func=command_predict)
