@@ -99,11 +99,13 @@ def make_loader(
     crop_scale_min: float = 0.8,
     crop_scale_max: float = 1.0,
     patch_sampling: bool = False,
+    sampling_mode: str = "single",
     num_patches: int = 1,
     persistent_workers: bool = False,
     prefetch_factor: int = 2,
 ):
-    if patch_sampling:
+    effective_sampling_mode = "patch" if patch_sampling and sampling_mode == "single" else sampling_mode
+    if effective_sampling_mode != "single":
         transform = (
             build_patch_train_transform(img_size)
             if train
@@ -122,7 +124,8 @@ def make_loader(
     dataset = ClassificationDataset(
         df,
         transform=transform,
-        patch_sampling=patch_sampling,
+        patch_sampling=effective_sampling_mode != "single",
+        sampling_mode=effective_sampling_mode,
         num_patches=num_patches,
         patch_size=img_size,
         train=train,
@@ -325,6 +328,7 @@ def command_train(args) -> None:
         crop_scale_min=args.crop_scale_min,
         crop_scale_max=args.crop_scale_max,
         patch_sampling=args.patch_sampling,
+        sampling_mode=args.sampling_mode,
         num_patches=args.num_patches,
         persistent_workers=args.persistent_workers,
         prefetch_factor=args.prefetch_factor,
@@ -336,6 +340,7 @@ def command_train(args) -> None:
         args.num_workers,
         train=False,
         patch_sampling=args.patch_sampling,
+        sampling_mode=args.sampling_mode,
         num_patches=args.num_patches,
         persistent_workers=args.persistent_workers,
         prefetch_factor=args.prefetch_factor,
@@ -378,6 +383,7 @@ def command_train(args) -> None:
                 "history_csv": str(history_path.resolve()),
                 "freeze_backbone_epochs": freeze_backbone_epochs,
                 "patch_sampling": bool(args.patch_sampling),
+                "sampling_mode": args.sampling_mode,
                 "num_patches": int(args.num_patches),
                 "amp": bool(args.amp),
                 "amp_dtype": args.amp_dtype,
@@ -399,6 +405,7 @@ def command_evaluate(args) -> None:
         args.num_workers,
         train=False,
         patch_sampling=args.patch_sampling,
+        sampling_mode=args.sampling_mode,
         num_patches=args.num_patches,
         persistent_workers=args.persistent_workers,
         prefetch_factor=args.prefetch_factor,
@@ -461,8 +468,11 @@ def command_predict(args) -> None:
     loader = DataLoader(
         PredictionDataset(
             image_paths,
-            build_patch_eval_transform(args.img_size) if args.patch_sampling else build_eval_transform(args.img_size),
-            patch_sampling=args.patch_sampling,
+            build_patch_eval_transform(args.img_size)
+            if (args.patch_sampling or args.sampling_mode != "single")
+            else build_eval_transform(args.img_size),
+            patch_sampling=(args.patch_sampling or args.sampling_mode != "single"),
+            sampling_mode=("patch" if args.patch_sampling and args.sampling_mode == "single" else args.sampling_mode),
             num_patches=args.num_patches,
             patch_size=args.img_size,
         ),
@@ -601,6 +611,11 @@ def build_parser() -> argparse.ArgumentParser:
         "crop_scale_min": dict(type=float, default=0.8),
         "crop_scale_max": dict(type=float, default=1.0),
         "num_patches": dict(type=int, default=1),
+        "sampling_mode": dict(
+            choices=["single", "patch", "structured"],
+            default="single",
+            help="single=image-level crop, patch=random/grid patches, structured=ordered multi-view crops",
+        ),
         "prefetch_factor": dict(type=int, default=2),
         "seed": dict(type=int, default=42),
     }
