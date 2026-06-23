@@ -309,6 +309,67 @@ def sample_patch_images(
     return patches[:num_patches]
 
 
+def _compute_structured_offsets(length: int, crop_size: int, num_views: int) -> list[int]:
+    if length <= crop_size:
+        return [0]
+    if num_views <= 1:
+        return [max((length - crop_size) // 2, 0)]
+    max_offset = length - crop_size
+    anchors = [0.0, 0.5, 1.0]
+    if num_views == 2:
+        anchors = [0.25, 0.75]
+    elif num_views > 3:
+        anchors = np.linspace(0.0, 1.0, num_views).tolist()
+    return [int(round(anchor * max_offset)) for anchor in anchors[:num_views]]
+
+
+def sample_structured_views(
+    image: Image.Image,
+    patch_size: int,
+    num_views: int,
+    train: bool,
+    jitter_ratio: float = 0.08,
+) -> list[Image.Image]:
+    """Extract ordered multi-view crops along the image's long axis.
+
+    This follows the spirit of structured multi-view sampling for elongated meat regions:
+    top/center/bottom for portrait-like crops, or left/center/right for landscape-like crops.
+    """
+    image = _ensure_min_size(image, patch_size)
+    width, height = image.size
+    use_vertical_axis = height >= width
+    rng = np.random.default_rng()
+
+    if use_vertical_axis:
+        top_offsets = _compute_structured_offsets(height, patch_size, num_views)
+        left_center = max((width - patch_size) // 2, 0)
+        max_left = max(width - patch_size, 0)
+        max_top = max(height - patch_size, 0)
+        jitter = int(round(patch_size * jitter_ratio)) if train else 0
+        views: list[Image.Image] = []
+        for top in top_offsets:
+            left = left_center
+            if jitter > 0:
+                left = int(np.clip(left + rng.integers(-jitter, jitter + 1), 0, max_left))
+                top = int(np.clip(top + rng.integers(-jitter, jitter + 1), 0, max_top))
+            views.append(image.crop((left, top, left + patch_size, top + patch_size)))
+        return views
+
+    left_offsets = _compute_structured_offsets(width, patch_size, num_views)
+    top_center = max((height - patch_size) // 2, 0)
+    max_left = max(width - patch_size, 0)
+    max_top = max(height - patch_size, 0)
+    jitter = int(round(patch_size * jitter_ratio)) if train else 0
+    views = []
+    for left in left_offsets:
+        top = top_center
+        if jitter > 0:
+            left = int(np.clip(left + rng.integers(-jitter, jitter + 1), 0, max_left))
+            top = int(np.clip(top + rng.integers(-jitter, jitter + 1), 0, max_top))
+        views.append(image.crop((left, top, left + patch_size, top + patch_size)))
+    return views
+
+
 class ClassificationDataset(Dataset):
     """Standard image classification dataset backed by a CSV dataframe."""
 
@@ -317,6 +378,7 @@ class ClassificationDataset(Dataset):
         df: pd.DataFrame,
         transform: T.Compose | None = None,
         patch_sampling: bool = False,
+        sampling_mode: str = "single",
         num_patches: int = 1,
         patch_size: int = 224,
         train: bool = False,
@@ -324,6 +386,7 @@ class ClassificationDataset(Dataset):
         self.df = df.reset_index(drop=True)
         self.transform = transform
         self.patch_sampling = patch_sampling
+        self.sampling_mode = sampling_mode
         self.num_patches = num_patches
         self.patch_size = patch_size
         self.train = train
@@ -334,18 +397,28 @@ class ClassificationDataset(Dataset):
     def __getitem__(self, index: int):
         row = self.df.iloc[index]
         image = Image.open(row["path"]).convert("RGB")
-        if self.patch_sampling:
-            patches = sample_patch_images(
-                image,
-                patch_size=self.patch_size,
-                num_patches=self.num_patches,
-                train=self.train,
-            )
+        if self.sampling_mode != "single":
+            if self.sampling_mode == "patch":
+                patches = sample_patch_images(
+                    image,
+                    patch_size=self.patch_size,
+                    num_patches=self.num_patches,
+                    train=self.train,
+                )
+            elif self.sampling_mode == "structured":
+                patches = sample_structured_views(
+                    image,
+                    patch_size=self.patch_size,
+                    num_views=self.num_patches,
+                    train=self.train,
+                )
+            else:
+                raise ValueError(f"Unsupported sampling mode: {self.sampling_mode}")
             if self.transform:
                 patches = [self.transform(patch) for patch in patches]
             image = np.stack([patch.numpy() for patch in patches], axis=0)
         if self.transform:
-            if not self.patch_sampling:
+            if self.sampling_mode == "single":
                 image = self.transform(image)
         label = LABEL_MAP[row["class"]]
         return image, label
@@ -359,12 +432,14 @@ class PredictionDataset(Dataset):
         image_paths: list[Path],
         transform: T.Compose,
         patch_sampling: bool = False,
+        sampling_mode: str = "single",
         num_patches: int = 1,
         patch_size: int = 224,
     ) -> None:
         self.image_paths = image_paths
         self.transform = transform
         self.patch_sampling = patch_sampling
+        self.sampling_mode = sampling_mode
         self.num_patches = num_patches
         self.patch_size = patch_size
 
@@ -374,13 +449,23 @@ class PredictionDataset(Dataset):
     def __getitem__(self, index: int):
         path = self.image_paths[index]
         image = Image.open(path).convert("RGB")
-        if self.patch_sampling:
-            patches = sample_patch_images(
-                image,
-                patch_size=self.patch_size,
-                num_patches=self.num_patches,
-                train=False,
-            )
+        if self.sampling_mode != "single":
+            if self.sampling_mode == "patch":
+                patches = sample_patch_images(
+                    image,
+                    patch_size=self.patch_size,
+                    num_patches=self.num_patches,
+                    train=False,
+                )
+            elif self.sampling_mode == "structured":
+                patches = sample_structured_views(
+                    image,
+                    patch_size=self.patch_size,
+                    num_views=self.num_patches,
+                    train=False,
+                )
+            else:
+                raise ValueError(f"Unsupported sampling mode: {self.sampling_mode}")
             stacked = np.stack([self.transform(patch).numpy() for patch in patches], axis=0)
             return stacked, str(path.resolve())
         return self.transform(image), str(path.resolve())
